@@ -1,0 +1,6 @@
+.vercel
+
+# Local environment files — contains DB password & Supabase service key, never commit
+.env
+.env.local
+.env.*.local

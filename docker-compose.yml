@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend-skycarpark
+    ports:
+      - "3001:3001"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+    env_file:
+      - .env
+    # --- บรรทัดที่เพิ่มเข้ามาระหว่างพัฒนา (Backend Volumes) ---
+    volumes:
+      - ./backend-skycarpark:/app
+      - /app/node_modules # เพื่อป้องกันไม่ให้โฟลเดอร์ node_modules ในเครื่องไปทับใน Docker
+    # -----------------------------------------------------
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "localhost:3001/health"]
+      interval: 30s
+
+  frontend:
+    # --- โหมดพัฒนา: รัน Vite dev server เพื่อให้แก้โค้ดแล้วเห็นผลทันที (hot reload) ---
+    # ไม่ใช้ Dockerfile (nginx) ระหว่างพัฒนา เพราะ nginx เสิร์ฟไฟล์ที่ build ไว้แล้วเท่านั้น
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 8080"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend
+    # --- Frontend Volumes: mount โค้ดจริงเข้า /app ซึ่งเป็นที่ที่ Vite รันอยู่ ---
+    volumes:
+      - ./Sky-car-park-Dashborad-main:/app
+      - /app/node_modules # ป้องกันไม่ให้ node_modules ในเครื่องไปทับใน Docker
+    # -----------------------------------------------------
+    restart: unless-stopped

@@ -1,0 +1,354 @@
+import React, { useState, useEffect } from 'react';
+import { XMarkIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import { Booking, CarType, Language, ParkingSlot, Zone } from '../types';
+import { translations } from '../data/i18n';
+import { recommendZone, NOW } from '../data/mockData';
+import { ThaiDateTimePicker } from './Thaidatetimepicker';
+import { supabase } from '../lib/supabase';
+
+interface CarModel {
+  brand: string;
+  model: string;
+}
+
+interface AddBookingModalProps {
+  onClose: () => void;
+  onAdd: (booking: Booking) => void;
+  onEdit?: (booking: Booking) => void;
+  slots: ParkingSlot[];
+  bookings: Booking[];
+  lang: Language;
+  editingBooking?: Booking | null;
+}
+
+export const AddBookingModal: React.FC<AddBookingModalProps> = ({ onClose, onAdd, onEdit, slots, bookings, lang, editingBooking }) => {
+  const t = translations[lang];
+
+  const formatLocalDatetime = (date: Date) => {
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
+  const [form, setForm] = useState({
+    name: editingBooking?.customer.name || '',
+    phone: editingBooking?.customer.phone || '',
+    altPhone: editingBooking?.customer.altPhone || '',
+    plate: editingBooking?.vehicle.plate || '',
+    province: editingBooking?.vehicle.province || '',
+    brand: editingBooking?.vehicle.brand || '',
+    model: editingBooking?.vehicle.model || '',
+    carType: editingBooking?.vehicle.type || 'sedan' as CarType,
+    checkIn: editingBooking ? formatLocalDatetime(editingBooking.checkIn) : formatLocalDatetime(NOW),
+    checkOut: editingBooking ? formatLocalDatetime(editingBooking.checkOut) : '',
+    remarks: editingBooking?.remarks || '',
+  });
+
+  const [recommended, setRecommended] = useState<Zone>(editingBooking ? editingBooking.zone : 'B');
+  const [estimatedFee, setEstimatedFee] = useState(0);
+
+  // Car brand/model data fetched from Supabase (car_models table)
+  const [carModels, setCarModels] = useState<CarModel[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data, error } = await supabase
+        .from('car_models')
+        .select('brand, model')
+        .order('brand', { ascending: true })
+        .order('model', { ascending: true });
+      if (active && !error && data) setCarModels(data as CarModel[]);
+    })();
+    return () => { active = false; };
+  }, []);
+
+  // Unique brand list (no duplicates), preserving fetched order
+  const brands = Array.from(new Set(carModels.map(c => c.brand))).filter(Boolean);
+
+  // Models belonging to the currently selected brand (deduped — car_models can
+  // hold repeat brand/model rows, which would otherwise produce duplicate keys)
+  const modelsForBrand = Array.from(new Set(
+    carModels
+      .filter(c => c.brand === form.brand)
+      .map(c => c.model)
+      .filter(Boolean)
+  ));
+
+  useEffect(() => {
+    setRecommended(recommendZone(form.carType) as Zone);
+  }, [form.carType]);
+
+  useEffect(() => {
+    if (form.checkIn && form.checkOut) {
+      const diff = new Date(form.checkOut).getTime() - new Date(form.checkIn).getTime();
+      const days = Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+      setEstimatedFee(days * 150);
+    }
+  }, [form.checkIn, form.checkOut]);
+
+  const handleSubmit = () => {
+    if (!form.name || !form.phone || !form.plate || !form.checkIn || !form.checkOut) {
+      alert(lang === 'th' ? 'กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (ชื่อ, เบอร์โทร, ทะเบียน, เวลาเข้า-ออก)' : 'Please fill in all required fields (Name, Phone, Plate, Check-in/out).');
+      return;
+    }
+
+    if (form.phone.length !== 10) {
+      alert(lang === 'th' ? 'กรุณากรอกเบอร์โทรศัพท์ให้ครบ 10 หลัก' : 'Please enter exactly 10 digits for phone number.');
+      return;
+    }
+
+    if (form.altPhone && form.altPhone.length !== 10) {
+      alert(lang === 'th' ? 'กรุณากรอกเบอร์สำรองให้ครบ 10 หลัก หรือเว้นว่างไว้' : 'Please enter exactly 10 digits for alternate phone number, or leave it blank.');
+      return;
+    }
+
+    if (form.remarks && form.remarks.length > 1000) {
+      alert(lang === 'th' ? 'หมายเหตุต้องไม่เกิน 1,000 ตัวอักษร' : 'Remarks must not exceed 1,000 characters.');
+      return;
+    }
+
+    if (editingBooking) {
+      const updatedBooking: Booking = {
+        ...editingBooking,
+        customer: { ...editingBooking.customer, name: form.name, phone: form.phone, altPhone: form.altPhone || undefined },
+        vehicle: {
+          ...editingBooking.vehicle,
+          plate: form.plate,
+          province: form.province,
+          brand: form.brand,
+          model: form.model,
+          type: form.carType,
+        },
+        checkIn: new Date(form.checkIn),
+        checkOut: new Date(form.checkOut),
+        fee: estimatedFee,
+        remarks: form.remarks || undefined,
+      };
+      if (onEdit) onEdit(updatedBooking);
+      onClose();
+      return;
+    }
+
+    const zone = recommended;
+
+    const claimedSlotIds = new Set(
+      bookings
+        .filter(b => b.status !== 'cancelled' && b.status !== 'completed')
+        .map(b => b.slotId)
+    );
+
+    const zoneSlots = slots.filter(
+      s => s.zone === zone && s.status === 'available' && !claimedSlotIds.has(s.id)
+    );
+    const slot =
+      zoneSlots[0] ||
+      slots.find(s => s.status === 'available' && !claimedSlotIds.has(s.id));
+
+    // ไม่มีช่องว่างเลย → แจ้งเตือนและไม่ให้จอง
+    if (!slot) {
+      alert(lang === 'th'
+        ? 'ขออภัย ขณะนี้ไม่มีช่องจอดว่าง ไม่สามารถเพิ่มการจองได้'
+        : 'Sorry, there are no available parking slots right now.');
+      return;
+    }
+
+    // generate random valid uuid v4
+    const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+
+    const newBooking: Booking = {
+      id: uuid,
+      slotId: slot.id,
+      zone: slot.zone,
+      slotNumber: slot.number,
+      customer: { id: `C-${Date.now()}`, name: form.name, phone: form.phone, altPhone: form.altPhone || undefined },
+      vehicle: {
+        plate: form.plate,
+        province: form.province,
+        brand: form.brand,
+        model: form.model,
+        type: form.carType,
+      },
+      checkIn: new Date(form.checkIn),
+      checkOut: new Date(form.checkOut),
+      fee: estimatedFee,
+      status: 'confirmed',
+      createdAt: new Date(),
+      isWalkIn: true,
+      remarks: form.remarks || undefined,
+    };
+
+    onAdd(newBooking);
+    onClose();
+  };
+
+  const zoneColors: Record<Zone, string> = {
+    A1: 'bg-purple-100 text-purple-700 border-purple-300',
+    A2: 'bg-blue-100 text-blue-700 border-blue-300',
+    B: 'bg-sky-100 text-sky-700 border-sky-300',
+    C: 'bg-teal-100 text-teal-700 border-teal-300',
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg max-h-[92vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-slate-100">
+          <h2 className="font-bold text-slate-800">{editingBooking ? (lang === 'th' ? 'แก้ไขการจอง' : 'Edit Booking') : t.modal.addBooking}</h2>
+          <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
+            <XMarkIcon className="w-5 h-5 text-slate-500" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {/* Customer info */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="col-span-2">
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">{t.modal.customerName}</label>
+              <input 
+                className="input-field" 
+                value={form.name} 
+                onChange={e => {
+                  const val = e.target.value;
+                  if (/^[a-zA-Z\u0E00-\u0E7F\s]*$/.test(val)) {
+                    setForm({ ...form, name: val });
+                  }
+                }} 
+                placeholder="สมชาย วงศ์ดี" 
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">{t.modal.phone}</label>
+              <input 
+                className="input-field" 
+                value={form.phone} 
+                onChange={e => setForm({ ...form, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })} 
+                placeholder="08x-xxx-xxxx" 
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">{t.modal.altPhone}</label>
+              <input 
+                className="input-field" 
+                value={form.altPhone} 
+                onChange={e => setForm({ ...form, altPhone: e.target.value.replace(/\D/g, '').slice(0, 10) })} 
+                placeholder="08x-xxx-xxxx" 
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">{t.modal.carType}</label>
+              <select className="input-field text-slate-500" value={form.carType} onChange={e => setForm({ ...form, carType: e.target.value as CarType })}>
+                {Object.entries(t.modal.carTypes).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">{t.modal.plate}</label>
+              <input className="input-field" value={form.plate} onChange={e => setForm({ ...form, plate: e.target.value })} placeholder="กข 1234" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">{t.modal.province}</label>
+              <input className="input-field" value={form.province} onChange={e => setForm({ ...form, province: e.target.value })} placeholder="กรุงเทพ" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">{t.modal.brand}</label>
+              <select
+                className="input-field text-slate-500"
+                value={form.brand}
+                onChange={e => setForm({ ...form, brand: e.target.value, model: '' })}
+              >
+                <option value="">{lang === 'th' ? 'เลือกยี่ห้อรถ' : 'Select brand'}</option>
+                {brands.map(brand => (
+                  <option key={brand} value={brand}>{brand}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">{t.modal.model}</label>
+              <select
+                className="input-field text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                value={form.model}
+                onChange={e => setForm({ ...form, model: e.target.value })}
+                disabled={!form.brand}
+              >
+                <option value="">
+                  {!form.brand
+                    ? (lang === 'th' ? 'เลือกยี่ห้อก่อน' : 'Select brand first')
+                    : (lang === 'th' ? 'เลือกรุ่นรถ' : 'Select model')}
+                </option>
+                {modelsForBrand.map(model => (
+                  <option key={model} value={model}>{model}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Recommended Zone */}
+          <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border border-slate-100">
+            <SparklesIcon className="w-4 h-4 text-blue-500 flex-shrink-0" />
+            <span className="text-xs text-slate-500">{t.modal.recommendedZone}:</span>
+            <span className={`badge border ${zoneColors[recommended]} font-bold`}>
+              Zone {recommended}
+            </span>
+            <span className="text-xs text-slate-400 ml-auto">
+              {slots.filter(s => s.zone === recommended && s.status === 'available').length} {lang === 'th' ? 'ช่องว่าง' : 'slots free'}
+            </span>
+          </div>
+
+          {/* Dates */}
+          <div className="space-y-3">
+            <ThaiDateTimePicker
+              value={form.checkIn}
+              onChange={v => setForm({ ...form, checkIn: v })}
+              label={t.modal.checkIn}
+              lang={lang}
+            />
+            <ThaiDateTimePicker
+              value={form.checkOut}
+              onChange={v => setForm({ ...form, checkOut: v })}
+              label={t.modal.checkOut}
+              lang={lang}
+            />
+          </div>
+
+          {/* Remarks */}
+          <div>
+            <label className="text-xs font-semibold text-slate-500 mb-1 block">{t.modal.remarks}</label>
+            <textarea
+              className="input-field resize-none min-h-[80px]"
+              value={form.remarks}
+              onChange={e => {
+                if (e.target.value.length <= 1000) {
+                  setForm({ ...form, remarks: e.target.value });
+                }
+              }}
+              placeholder={t.modal.remarksPlaceholder}
+              maxLength={1000}
+              rows={3}
+            />
+            {form.remarks.length > 0 && (
+              <p className="text-[10px] text-slate-400 text-right mt-0.5">{form.remarks.length} / 1000</p>
+            )}
+          </div>
+
+          {/* Estimated fee */}
+          {estimatedFee > 0 && (
+            <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl border border-blue-100">
+              <span className="text-sm text-blue-700 font-medium">{t.modal.estimatedFee}</span>
+              <span className="text-xl font-bold text-blue-700">฿{estimatedFee.toLocaleString()}</span>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-2">
+            <button onClick={onClose} className="btn-secondary flex-1 justify-center">{t.modal.cancel}</button>
+            <button onClick={handleSubmit} className="btn-primary flex-1 justify-center">{editingBooking ? (lang === 'th' ? 'บันทึกการแก้ไข' : 'Save Changes') : t.modal.confirm}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

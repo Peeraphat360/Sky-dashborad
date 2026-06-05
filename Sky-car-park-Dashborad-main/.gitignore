@@ -1,0 +1,8 @@
+node_modules
+
+.vercel
+
+# Local environment files (keep secrets out of git; commit .env.example instead)
+.env
+.env.local
+.env.*.local
