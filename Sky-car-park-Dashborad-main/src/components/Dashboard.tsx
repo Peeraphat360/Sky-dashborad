@@ -407,11 +407,12 @@ const ZoneMap: React.FC<ZoneMapProps> = ({ slots, bookings, lang, canMoveSlot, o
     <div className="grid grid-cols-2 gap-4">
       {zones.map(zone => {
         const zoneSlots = slots.filter(s => s.zone === zone);
-        // Normalize all statuses before counting
-        const normalizedSlots = zoneSlots.map(s => ({
-          ...s,
-          status: normalizeStatus(s.status),
-        }));
+        // Normalize all statuses before counting + เรียงช่องตามเลข 1→10 (numeric sort
+        // ดึงเฉพาะตัวเลขจาก number กัน "1, 10, 2" เพี้ยนแบบ string sort)
+        const slotNum = (n: unknown) => parseInt(String(n).replace(/\D/g, ''), 10) || 0;
+        const normalizedSlots = zoneSlots
+          .map(s => ({ ...s, status: normalizeStatus(s.status) }))
+          .sort((a, b) => slotNum(a.number) - slotNum(b.number));
         const avail    = normalizedSlots.filter(s => s.status === 'available').length;
         const occupied = normalizedSlots.filter(s => s.status === 'occupied').length;
         const reserved = normalizedSlots.filter(s => s.status === 'reserved').length;
