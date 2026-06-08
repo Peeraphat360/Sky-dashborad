@@ -96,6 +96,15 @@ class Repository:
         )
         return bool(rows)
 
+    async def save_picture(self, user_id: str, picture_url: str) -> None:
+        """เก็บรูปโปรไฟล์ LINE ล่าสุดของลูกค้า (ใช้แสดงใน dashboard)."""
+        await self._run(
+            lambda: self._client.table("users")
+            .update({"picture_url": picture_url})
+            .eq("id", user_id)
+            .execute()
+        )
+
     async def log_sent(self, user_id: str, title: str, booking_id: str) -> None:
         await self._run(
             lambda: self._client.table("notifications")

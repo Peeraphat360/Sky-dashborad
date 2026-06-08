@@ -51,3 +51,20 @@ async def push_flex(line_user_id: str, flex_bubble: dict, alt_text: str) -> None
         )
 
     logger.info("LINE push delivered to %s", line_user_id)
+
+
+async def get_profile(line_user_id: str) -> dict | None:
+    """Fetch a customer's LINE profile (name, pictureUrl, …) via the Messaging API.
+    Returns None if the user isn't reachable (e.g. hasn't added the OA as a friend)."""
+    settings = get_settings()
+    if not settings.line_channel_access_token:
+        return None
+    headers = {"Authorization": f"Bearer {settings.line_channel_access_token}"}
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(
+            f"https://api.line.me/v2/bot/profile/{line_user_id}", headers=headers
+        )
+    if resp.status_code == 200:
+        return resp.json()
+    logger.info("get_profile %s -> %s", line_user_id, resp.status_code)
+    return None

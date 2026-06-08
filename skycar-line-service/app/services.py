@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from .config import get_settings
 from .flex.confirmation import build_confirmation_flex
 from .flex.receipt import build_receipt_flex
-from .line_client import LinePushError, push_flex
+from .line_client import LinePushError, get_profile, push_flex
 from .repository import Repository, TITLE_CONFIRMED, TITLE_RECEIPT
 from .schemas import BookingContext, SendResult
 
@@ -48,7 +48,20 @@ async def _deliver(repo: Repository, ctx: BookingContext, title: str,
         # error อื่น (401 token ผิด, 5xx ฝั่ง LINE) ถือว่าระบบมีปัญหาจริง
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     await repo.log_sent(ctx.user_id, title, ctx.booking_id)
+    # best-effort: เก็บรูปโปรไฟล์ LINE ของลูกค้าไว้ใช้แสดงใน dashboard (push สำเร็จ
+    # = เป็นเพื่อน OA → bot/profile ใช้ได้) — ถ้าพลาดไม่กระทบการส่ง
+    await _update_picture(repo, ctx)
     return SendResult(sent=True, booking_id=ctx.booking_id)
+
+
+async def _update_picture(repo: Repository, ctx: BookingContext) -> None:
+    try:
+        profile = await get_profile(ctx.line_user_id)
+        pic = (profile or {}).get("pictureUrl")
+        if pic:
+            await repo.save_picture(ctx.user_id, pic)
+    except Exception as exc:  # noqa: BLE001 — best-effort, ห้ามให้ล้มทั้ง flow
+        logger.warning("picture update failed for %s: %s", ctx.booking_id, exc)
 
 
 async def send_receipt(repo: Repository, booking_id: str) -> SendResult:
