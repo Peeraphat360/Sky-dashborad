@@ -418,13 +418,8 @@ const ZoneMap: React.FC<ZoneMapProps> = ({ slots, bookings, lang, canMoveSlot, o
 
         return (
           <div key={zone} className={`rounded-xl border bg-gradient-to-br ${zoneColors[zone]} p-3`}>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center mb-2">
               <div className={`text-white text-xs font-bold px-2.5 py-1 rounded-lg ${zoneHeaderColors[zone]}`}>{zone}</div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-emerald-600 font-semibold">{avail} ว่าง</span>
-                {occupied > 0 && <span className="text-[10px] text-red-500 font-semibold">{occupied} ไม่ว่าง</span>}
-                {reserved > 0 && <span className="text-[10px] text-amber-600 font-semibold">{reserved} จอง</span>}
-              </div>
             </div>
             <p className="text-[10px] text-slate-500 mb-2 leading-tight">{zoneLabels[zone]}</p>
             <div className="flex flex-wrap gap-1">
@@ -458,6 +453,22 @@ const ZoneMap: React.FC<ZoneMapProps> = ({ slots, bookings, lang, canMoveSlot, o
                   </div>
                 );
               })}
+            </div>
+            {/* สรุปจำนวนช่องของโซน — ย้ายมาล่างการ์ด ทำเป็น pill ให้อ่านง่ายบนมือถือ */}
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-white/60 pt-2.5">
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />{avail} {lang === 'th' ? 'ว่าง' : 'free'}
+              </span>
+              {occupied > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600">
+                  <span className="h-1.5 w-1.5 rounded-full bg-red-500" />{occupied} {lang === 'th' ? 'ไม่ว่าง' : 'full'}
+                </span>
+              )}
+              {reserved > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-600">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />{reserved} {lang === 'th' ? 'จอง' : 'booked'}
+                </span>
+              )}
             </div>
             {avail > 0 && canMoveSlot && (
               <p className="text-[9px] text-emerald-600 mt-2 font-medium">

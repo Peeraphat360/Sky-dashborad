@@ -233,8 +233,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             >
               <div className="relative">
                 <Icon className="w-5 h-5" />
-                {id === 'bookings' && (pendingCount > 0 || confirmedCount > 0) && (
-                  <span className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ${pendingCount > 0 ? 'bg-amber-500 animate-pulse' : 'bg-blue-500'}`} />
+                {id === 'bookings' && (pendingCount + confirmedCount) > 0 && (
+                  <span className="absolute -top-2 -right-2.5 min-w-[17px] h-[17px] px-1 bg-orange-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center ring-2 ring-white shadow-sm animate-pulse">
+                    {(pendingCount + confirmedCount) > 99 ? '99+' : (pendingCount + confirmedCount)}
+                  </span>
                 )}
               </div>
               <span className="text-[10px] font-medium">{t.nav[id]}</span>
