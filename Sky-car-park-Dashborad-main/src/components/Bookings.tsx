@@ -299,8 +299,13 @@ export const Bookings: React.FC<BookingsProps> = ({
         </div>
         {/* ✅ ซ่อนปุ่มเพิ่มการจองถ้าไม่มีสิทธิ์ — manager มีสิทธิ์เพราะ canAddBooking: true */}
         {permissions.canAddBooking && (
-          <button onClick={() => setShowModal(true)} className="btn-primary flex-shrink-0">
-            <PlusIcon className="w-4 h-4" />
+          <button
+            onClick={() => setShowModal(true)}
+            className="group flex-shrink-0 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-sky-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 ring-1 ring-white/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-blue-500/40 hover:brightness-105 active:translate-y-0 active:scale-95"
+          >
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 transition-transform duration-300 group-hover:rotate-90">
+              <PlusIcon className="w-3.5 h-3.5" />
+            </span>
             <span className="hidden sm:inline">{t.booking.addBooking}</span>
             <span className="sm:hidden">{lang === 'th' ? 'เพิ่ม' : 'Add'}</span>
           </button>
