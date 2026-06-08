@@ -19,7 +19,8 @@ export interface Customer {
   name: string;
   phone: string;
   altPhone?: string;
-  lineId?: string;   // LINE userId จาก login — ใช้แยกลูกค้าใหม่/เก่า (ไม่ซ้ำต่อบัญชี)
+  lineId?: string;       // LINE userId จาก login — ใช้แยกลูกค้าใหม่/เก่า (ไม่ซ้ำต่อบัญชี)
+  pictureUrl?: string;   // รูปโปรไฟล์ LINE (backfill จาก Messaging API)
 }
 
 export interface Vehicle {

@@ -11,6 +11,7 @@ import {
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { Booking, Language } from '../types';
+import { CustomerAvatar } from './CustomerAvatar';
 import { translations } from '../data/i18n';
 
 interface HistoryProps {
@@ -37,6 +38,7 @@ interface CustomerGroup {
   lastVisit: Date;
   totalAllBookings: number;  // นับจาก booking ทั้งหมด (ทุก status)
   isReturning: boolean;      // true = ลูกค้าเก่า (>= 2 bookings)
+  pictureUrl?: string;       // รูปโปรไฟล์ LINE
 }
 
 export const History: React.FC<HistoryProps> = ({ bookings, lang }) => {
@@ -73,6 +75,7 @@ export const History: React.FC<HistoryProps> = ({ bookings, lang }) => {
         lastVisit: b.checkIn,
         totalAllBookings: 0,
         isReturning: false,
+        pictureUrl: b.customer.pictureUrl,
       });
     }
     const grp = customerMap.get(key)!;
@@ -190,13 +193,7 @@ export const History: React.FC<HistoryProps> = ({ bookings, lang }) => {
               className={`card p-4 w-full text-left hover:shadow-md transition-all ${selected?.phone === cust.phone ? 'ring-2 ring-blue-500' : ''}`}
             >
               <div className="flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${
-                  cust.isReturning
-                    ? 'bg-gradient-to-br from-purple-500 to-purple-700'
-                    : 'bg-gradient-to-br from-emerald-500 to-emerald-700'
-                }`}>
-                  {cust.name.charAt(0)}
-                </div>
+                <CustomerAvatar name={cust.name} pictureUrl={cust.pictureUrl} isReturning={cust.isReturning} className="w-9 h-9 rounded-full text-sm" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <p className="text-sm font-semibold text-slate-800 truncate">{cust.name}</p>
@@ -264,13 +261,7 @@ export const History: React.FC<HistoryProps> = ({ bookings, lang }) => {
               </div>
               {/* Customer header */}
               <div className="flex items-start gap-4 mb-5 pb-5 border-b border-slate-100">
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white text-2xl font-bold ${
-                  selected.isReturning
-                    ? 'bg-gradient-to-br from-purple-500 to-purple-800'
-                    : 'bg-gradient-to-br from-emerald-500 to-emerald-800'
-                }`}>
-                  {selected.name.charAt(0)}
-                </div>
+                <CustomerAvatar name={selected.name} pictureUrl={selected.pictureUrl} isReturning={selected.isReturning} className="w-14 h-14 rounded-2xl text-2xl" />
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-bold text-slate-800 text-lg">{selected.name}</h3>

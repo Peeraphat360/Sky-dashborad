@@ -17,6 +17,7 @@ import {
 import { Booking, Language } from '../types';
 import { calcFee, FeeBreakdown, NOW } from '../data/mockData';
 import { usePermissions } from '../context/AuthContext';
+import { CustomerAvatar } from './CustomerAvatar';
 import paymentQr from '../assets/payment-qr.png';
 
 
@@ -466,11 +467,14 @@ export const Parking: React.FC<ParkingProps> = ({ bookings, lang, onMarkPaid }) 
                 </div>
 
                 {/* Customer */}
-                <div className="mb-3">
-                  <p className="font-semibold text-slate-800">{b.customer.name}</p>
-                  <p className="text-xs text-slate-400">
-                    {b.customer.phone}{b.customer.altPhone ? ` · ${b.customer.altPhone}` : ''}
-                  </p>
+                <div className="mb-3 flex items-center gap-2.5">
+                  <CustomerAvatar name={b.customer.name} pictureUrl={b.customer.pictureUrl} className="w-9 h-9 rounded-full text-sm" />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-800 truncate">{b.customer.name}</p>
+                    <p className="text-xs text-slate-400 truncate">
+                      {b.customer.phone}{b.customer.altPhone ? ` · ${b.customer.altPhone}` : ''}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Plate */}
