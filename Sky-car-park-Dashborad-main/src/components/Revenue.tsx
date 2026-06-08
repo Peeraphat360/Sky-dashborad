@@ -125,15 +125,13 @@ export const Revenue: React.FC<RevenueProps> = ({ bookings, lang }) => {
           <div className="card p-4">
             <h2 className="font-bold text-slate-700 text-sm mb-3">{t.revenue.zoneRevenue}</h2>
             <div className="flex items-center">
-              <ResponsiveContainer width={100} height={100}>
-                <PieChart>
-                  <Pie data={zoneRevenue} cx="50%" cy="50%" innerRadius={28} outerRadius={46} dataKey="value" label={false}>
-                    {zoneRevenue.map((_, i) => (
-                      <Cell key={i} fill={ZONE_COLORS[i % ZONE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
+              <PieChart width={100} height={100}>
+                <Pie data={zoneRevenue} cx="50%" cy="50%" innerRadius={28} outerRadius={46} dataKey="value" label={false}>
+                  {zoneRevenue.map((_, i) => (
+                    <Cell key={i} fill={ZONE_COLORS[i % ZONE_COLORS.length]} />
+                  ))}
+                </Pie>
+              </PieChart>
               <div className="flex-1 space-y-1 pl-1">
                 {zoneRevenue.map((z, i) => (
                   <div key={z.name} className="flex items-center justify-between text-xs">
@@ -152,15 +150,13 @@ export const Revenue: React.FC<RevenueProps> = ({ bookings, lang }) => {
           <div className="card p-4">
             <h2 className="font-bold text-slate-700 text-sm mb-3">{t.revenue.bookingType}</h2>
             <div className="flex items-center">
-              <ResponsiveContainer width={100} height={90}>
-                <PieChart>
-                  <Pie data={bookingTypeData} cx="50%" cy="50%" innerRadius={25} outerRadius={43} dataKey="value">
-                    {bookingTypeData.map((_, i) => (
-                      <Cell key={i} fill={BOOKING_TYPE_COLORS[i]} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
+              <PieChart width={100} height={90}>
+                <Pie data={bookingTypeData} cx="50%" cy="50%" innerRadius={25} outerRadius={43} dataKey="value">
+                  {bookingTypeData.map((_, i) => (
+                    <Cell key={i} fill={BOOKING_TYPE_COLORS[i]} />
+                  ))}
+                </Pie>
+              </PieChart>
               <div className="flex-1 space-y-2 pl-1">
                 {bookingTypeData.map((d, i) => (
                   <div key={d.name} className="flex items-center text-xs">
