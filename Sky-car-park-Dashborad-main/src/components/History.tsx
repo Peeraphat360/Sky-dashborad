@@ -8,6 +8,7 @@ import {
   QrCodeIcon,
   ArrowPathIcon,
   SparklesIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { Booking, Language } from '../types';
 import { translations } from '../data/i18n';
@@ -229,15 +230,38 @@ export const History: React.FC<HistoryProps> = ({ bookings, lang }) => {
           ))}
         </div>
 
-        {/* Customer detail */}
-        <div className="md:col-span-2">
+        {/* Mobile backdrop — แตะพื้นหลังเพื่อปิด bottom sheet */}
+        {selected && (
+          <div
+            className="md:hidden fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+            onClick={() => setSelected(null)}
+          />
+        )}
+
+        {/* Customer detail — desktop: คอลัมน์ขวา · mobile: bottom sheet เด้งจากล่าง */}
+        <div className={`md:col-span-2 ${
+          selected
+            ? 'max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-50 max-md:max-h-[85vh] max-md:overflow-y-auto max-md:rounded-t-3xl max-md:bg-white max-md:shadow-2xl'
+            : ''
+        }`}>
           {!selected ? (
             <div className="card hidden md:flex h-full flex-col items-center justify-center text-slate-300 p-12">
               <UserCircleIcon className="w-16 h-16 mb-3" />
               <p className="text-sm">{lang === 'th' ? 'เลือกลูกค้าเพื่อดูรายละเอียด' : 'Select a customer to view details'}</p>
             </div>
           ) : (
-            <div className="card p-5">
+            <div className="card p-5 max-md:rounded-none max-md:border-0 max-md:shadow-none">
+              {/* Mobile sheet handle + ปุ่มปิด */}
+              <div className="md:hidden relative mb-3">
+                <div className="mx-auto h-1.5 w-10 rounded-full bg-slate-200" />
+                <button
+                  onClick={() => setSelected(null)}
+                  aria-label="close"
+                  className="absolute -top-1 right-0 p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 active:scale-95 transition"
+                >
+                  <XMarkIcon className="w-5 h-5" />
+                </button>
+              </div>
               {/* Customer header */}
               <div className="flex items-start gap-4 mb-5 pb-5 border-b border-slate-100">
                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white text-2xl font-bold ${
