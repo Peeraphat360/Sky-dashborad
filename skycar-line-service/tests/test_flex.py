@@ -85,7 +85,7 @@ def test_receipt_flex_structure_and_content():
     assert "Toyota Yaris" in joined
     assert "กข-1234" in joined
     assert "3 วัน" in joined
-    assert "2,400 บาท" in joined          # total
+    assert "฿2,400" in joined             # total
     assert "ชำระเงินแล้ว" in joined
     assert "082-325-8380" in joined
     assert any(LOGO == img.get("url") for img in _images(bubble))
@@ -95,7 +95,7 @@ def test_receipt_total_falls_back_to_fee_times_days():
     ctx = sample()
     ctx.amount = None  # no payment amount → fee * days
     bubble = build_receipt_flex(ctx, logo_url=LOGO, shop_phone=PHONE)
-    assert "2,400 บาท" in " ".join(_collect_text(bubble))
+    assert "฿2,400" in " ".join(_collect_text(bubble))
 
 
 # ── confirmation flex ────────────────────────────────────────

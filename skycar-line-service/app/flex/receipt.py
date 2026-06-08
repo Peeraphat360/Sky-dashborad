@@ -1,4 +1,4 @@
-"""UC5 — ใบเสร็จรับรถ (receipt) Flex Message builder."""
+"""UC5 — ใบเสร็จรับรถ / Official Receipt — premium bilingual Flex Message."""
 from __future__ import annotations
 
 from ..schemas import BookingContext
@@ -9,113 +9,114 @@ from . import theme
 def build_receipt_flex(ctx: BookingContext, *, logo_url: str, shop_phone: str) -> dict:
     """Return a LINE Flex *bubble* dict for the rental receipt.
 
-    Pure function: no I/O, fully determined by its arguments — unit-test friendly.
+    Pure function: fully determined by its arguments — unit-test friendly.
     """
     days = rental_days(ctx.start_time, ctx.end_time)
     amount = ctx.amount if ctx.amount is not None else (ctx.fee or 0) * days
     per_day = ctx.fee if ctx.fee is not None else (amount / days if days else amount)
     car = f"{ctx.vehicle_brand} {ctx.vehicle_model}".strip() or "-"
+    plate = ctx.vehicle_plate or "-"
 
-    # ── Header (blue) ──
+    # ── Hero header (gradient + logo medallion + gold accent) ──
     header = {
         "type": "box",
         "layout": "vertical",
-        "backgroundColor": theme.PRIMARY,
-        "paddingAll": "20px",
+        "background": theme.HEADER_GRADIENT,
+        "paddingTop": "26px",
+        "paddingBottom": "22px",
+        "paddingStart": "20px",
+        "paddingEnd": "20px",
         "spacing": "sm",
         "contents": [
-            {"type": "image", "url": logo_url, "size": "sm", "align": "center"},
-            {
-                "type": "text", "text": "ใบเสร็จรับรถ", "color": "#ffffff",
-                "weight": "bold", "size": "xl", "align": "center", "margin": "md",
-            },
-            {
-                "type": "text", "text": "Sky Car Park — ขอบคุณที่ใช้บริการ",
-                "color": theme.SUBTLE_ON_PRIMARY, "size": "xs", "align": "center",
-            },
+            theme.logo_badge(logo_url),
+            {"type": "text", "text": "ใบเสร็จรับรถ", "color": "#ffffff",
+             "weight": "bold", "size": "xl", "align": "center", "margin": "lg"},
+            theme.gold_divider(),
+            {"type": "text", "text": "OFFICIAL RECEIPT", "color": theme.GOLD,
+             "size": "xxs", "weight": "bold", "align": "center", "margin": "sm"},
+            {"type": "text", "text": "Sky Car Park · ขอบคุณที่ใช้บริการ",
+             "color": theme.SUBTLE_ON_PRIMARY, "size": "xs", "align": "center"},
         ],
     }
 
-    # ── Body (white) ──
-    car_block = {
+    # ── Body ──
+    total_block = {
         "type": "box",
         "layout": "horizontal",
-        "margin": "md",
+        "margin": "xl",
+        "backgroundColor": theme.SURFACE_LIGHT,
+        "cornerRadius": "16px",
+        "paddingAll": "18px",
+        "borderWidth": "1px",
+        "borderColor": "#dceefb",
+        "alignItems": "center",
         "contents": [
-            {"type": "text", "text": "รถ", "size": "sm", "color": theme.TEXT_GREY, "flex": 4},
             {
-                "type": "box", "layout": "vertical", "flex": 6,
+                "type": "box", "layout": "vertical", "flex": 5,
                 "contents": [
-                    {"type": "text", "text": car, "size": "sm", "color": theme.TEXT_DARK,
-                     "weight": "bold", "align": "end", "wrap": True},
-                    {"type": "text", "text": ctx.vehicle_plate or "-", "size": "xs",
-                     "color": theme.TEXT_GREY, "align": "end"},
+                    {"type": "text", "text": "รวมทั้งหมด", "size": "sm",
+                     "color": theme.TEXT_DARK, "weight": "bold"},
+                    {"type": "text", "text": "Total amount", "size": "xxs",
+                     "color": theme.TEXT_FAINT},
                 ],
             },
+            {"type": "text", "text": f"฿{money(amount)}", "flex": 6, "align": "end",
+             "size": "xxl", "color": theme.PRIMARY, "weight": "bold", "gravity": "center"},
         ],
     }
 
     body = {
         "type": "box",
         "layout": "vertical",
-        "paddingAll": "20px",
+        "paddingAll": "22px",
         "contents": [
-            theme.info_row("เลขที่ booking", short_ref(ctx.booking_id)),
-            theme.info_row("ชื่อผู้เช่า", ctx.customer_name or "-"),
-            car_block,
-            theme.info_row("วันรับรถ", thai_date(ctx.start_time)),
-            theme.info_row("วันคืนรถ", thai_date(ctx.end_time)),
-            theme.info_row("จำนวนวัน", f"{days} วัน"),
-            theme.info_row("ราคา/วัน", f"{money(per_day)} บาท"),
-            {"type": "separator", "margin": "lg", "color": "#e2e8f0"},
-            {
-                "type": "box",
-                "layout": "horizontal",
-                "margin": "lg",
-                "contents": [
-                    {"type": "text", "text": "รวมทั้งหมด", "size": "md",
-                     "color": theme.TEXT_DARK, "weight": "bold", "flex": 4, "gravity": "center"},
-                    {"type": "text", "text": f"{money(amount)} บาท", "size": "xl",
-                     "color": theme.PRIMARY, "weight": "bold", "align": "end", "flex": 6},
-                ],
-            },
+            theme.bi_row("เลขที่การจอง", "Booking No.", short_ref(ctx.booking_id),
+                         value_color=theme.PRIMARY),
+            theme.bi_row("ชื่อผู้เช่า", "Renter", ctx.customer_name or "-"),
+            theme.bi_row("รถ", "Vehicle", car, sub_value=f"ทะเบียน {plate}"),
+            theme.hairline(),
+            theme.bi_row("วันรับรถ", "Pick-up", thai_date(ctx.start_time)),
+            theme.bi_row("วันคืนรถ", "Return", thai_date(ctx.end_time)),
+            theme.bi_row("จำนวนวัน", "Duration", f"{days} วัน · {days} day(s)"),
+            theme.bi_row("ราคา/วัน", "Rate / day", f"{money(per_day)} บาท"),
+            total_block,
         ],
     }
 
-    # ── Footer ──
-    paid_text = "ชำระเงินแล้ว"
-    if ctx.paid_at is not None:
-        paid_text = f"ชำระเงินแล้ว · {thai_datetime(ctx.paid_at)}"
+    # ── Footer (paid badge + contact) ──
+    paid_line = "ชำระเงินแล้ว · Paid"
+    paid_when = thai_datetime(ctx.paid_at) if ctx.paid_at is not None else ""
 
     footer = {
         "type": "box",
         "layout": "vertical",
-        "paddingAll": "16px",
-        "spacing": "sm",
+        "paddingAll": "18px",
+        "spacing": "md",
         "contents": [
             {
                 "type": "box",
                 "layout": "vertical",
                 "backgroundColor": theme.SUCCESS_BG,
-                "cornerRadius": "md",
-                "paddingAll": "10px",
+                "cornerRadius": "12px",
+                "paddingAll": "12px",
                 "contents": [
-                    {"type": "text", "text": paid_text, "size": "sm",
-                     "color": theme.SUCCESS, "weight": "bold", "align": "center", "wrap": True},
+                    {"type": "text", "text": f"✓  {paid_line}", "size": "sm",
+                     "color": theme.SUCCESS, "weight": "bold", "align": "center"},
+                    *([{"type": "text", "text": paid_when, "size": "xxs",
+                        "color": theme.SUCCESS, "align": "center", "margin": "xs"}]
+                      if paid_when else []),
                 ],
             },
-            {
-                "type": "text",
-                "text": f"📞 ติดต่อสอบถาม: {shop_phone}",
-                "size": "xs", "color": theme.TEXT_GREY, "align": "center", "margin": "md",
-            },
+            {"type": "text", "text": f"📞 ติดต่อสอบถาม · Contact  {shop_phone}",
+             "size": "xs", "color": theme.TEXT_FAINT, "align": "center", "wrap": True},
         ],
     }
 
     return {
         "type": "bubble",
+        "size": "mega",
         "header": header,
         "body": body,
         "footer": footer,
-        "styles": {"footer": {"separator": True}},
+        "styles": {"footer": {"separator": True, "separatorColor": theme.HAIRLINE}},
     }
