@@ -53,7 +53,7 @@ function AppInner() {
 
     const { data: bookingsData } = await supabase
       .from('bookings')
-      .select('*, payments(*)')
+      .select('*, payments(*), users(line_id, line_user_id)')
       .order('created_at', { ascending: false });
 
     const zones: Record<string, string> = {};
@@ -112,11 +112,12 @@ function AppInner() {
           slotId: b.slot_id,
           zone: (slot ? slot.zone : 'B') as Zone,
           slotNumber: slot ? slot.number : 0,
-          customer: { 
-            id: b.user_id, 
-            name: b.customer_name || '-', 
+          customer: {
+            id: b.user_id,
+            name: b.customer_name || '-',
             phone: b.customer_phone || '-',
-            altPhone: b.customer_alt_phone || undefined
+            altPhone: b.customer_alt_phone || undefined,
+            lineId: b.users?.line_user_id || b.users?.line_id || undefined,
           },
           vehicle: { 
             plate: b.vehicle_plate || '-', 

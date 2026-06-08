@@ -69,20 +69,22 @@ function buildWeekData(bookings: Booking[]) {
 
 // ─── New/Returning customer detection ─────────────────────────────────────────
 function calcCustomerTypes(bookings: Booking[]) {
+  // ใช้ LINE id จาก login เป็นตัวระบุลูกค้า (fallback เบอร์ → user id) แทนการใช้ชื่อ
+  const customerKey = (c: { lineId?: string; phone?: string; id: string }) =>
+    (c.lineId || '').trim() || (c.phone || '').trim().replace(/^-$/, '') || c.id;
   const completed = bookings.filter(b => b.status === 'completed');
-  // Group by customer name (as specified)
   const visitCount = new Map<string, number>();
   completed.forEach(b => {
-    const name = b.customer.name.trim();
-    visitCount.set(name, (visitCount.get(name) ?? 0) + 1);
+    const k = customerKey(b.customer);
+    visitCount.set(k, (visitCount.get(k) ?? 0) + 1);
   });
-  // Also consider active/confirmed as customers
-  const allNames = new Set<string>();
-  bookings.forEach(b => allNames.add(b.customer.name.trim()));
+  // นับลูกค้าทุกคน (รวม active/confirmed)
+  const allKeys = new Set<string>();
+  bookings.forEach(b => allKeys.add(customerKey(b.customer)));
 
   let newCount = 0, returningCount = 0;
-  allNames.forEach(name => {
-    if ((visitCount.get(name) ?? 0) >= 2) returningCount++;
+  allKeys.forEach(k => {
+    if ((visitCount.get(k) ?? 0) >= 2) returningCount++;
     else newCount++;
   });
   const total = newCount + returningCount;

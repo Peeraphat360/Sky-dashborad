@@ -43,14 +43,15 @@ export const History: React.FC<HistoryProps> = ({ bookings, lang }) => {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<CustomerGroup | null>(null);
 
-  // ─── นับจำนวน booking ทั้งหมดต่อลูกค้า (ใช้เบอร์โทรเป็น key) ─────
-  // ใช้ทุก status เพื่อจำแนกว่าลูกค้าเคยจองกี่ครั้ง
-  const allBookingCountByPhone = new Map<string, number>();
+  // ─── นับจำนวน booking ทั้งหมดต่อลูกค้า (ใช้ LINE id จาก login เป็น key) ─────
+  // LINE id ไม่ซ้ำกันต่อบัญชี → จำแนกลูกค้าแม่นกว่าเบอร์/ชื่อ
+  // fallback: ถ้าไม่มี LINE id (เช่น walk-in) ใช้เบอร์ → user id
+  const customerKey = (c: { lineId?: string; phone?: string; id: string }) =>
+    (c.lineId || '').trim() || (c.phone || '').trim().replace(/^-$/, '') || c.id;
+  const allBookingCountByKey = new Map<string, number>();
   bookings.forEach(b => {
-    const phone = (b.customer.phone || '').trim();
-    if (phone && phone !== '-') {
-      allBookingCountByPhone.set(phone, (allBookingCountByPhone.get(phone) ?? 0) + 1);
-    }
+    const k = customerKey(b.customer);
+    allBookingCountByKey.set(k, (allBookingCountByKey.get(k) ?? 0) + 1);
   });
 
   const completedBookings = bookings.filter(b => b.status === 'completed');
@@ -58,7 +59,7 @@ export const History: React.FC<HistoryProps> = ({ bookings, lang }) => {
   // Group by customer phone (เบอร์โทร) แทน user_id
   const customerMap = new Map<string, CustomerGroup>();
   completedBookings.forEach(b => {
-    const key = (b.customer.phone || '').trim() || b.customer.id;
+    const key = customerKey(b.customer);
     if (!customerMap.has(key)) {
       customerMap.set(key, {
         customerId: b.customer.id,
@@ -82,8 +83,8 @@ export const History: React.FC<HistoryProps> = ({ bookings, lang }) => {
   });
 
   // ─── คำนวณสถานะลูกค้าเก่า/ใหม่ ────────────────────────────────────
-  customerMap.forEach((grp) => {
-    const totalAll = allBookingCountByPhone.get(grp.phone) ?? grp.bookings.length;
+  customerMap.forEach((grp, key) => {
+    const totalAll = allBookingCountByKey.get(key) ?? grp.bookings.length;
     grp.totalAllBookings = totalAll;
     grp.isReturning = totalAll >= 2;
   });
