@@ -49,6 +49,25 @@ def rental_days(start: datetime, end: datetime) -> int:
     return days if days > 0 else 1
 
 
+OFF_HOURS_FEE = 50  # ค่าบริการรับส่งนอกเวลา (ต่อเที่ยว)
+
+
+def _is_off_hours(dt: datetime) -> bool:
+    """ก่อน 08:00 หรือหลัง 21:00 = นอกเวลาให้บริการรับส่งฟรี."""
+    minutes = dt.hour * 60 + dt.minute
+    return minutes < 8 * 60 or minutes > 21 * 60
+
+
+def off_hours_surcharge(start: datetime, end: datetime) -> int:
+    """+50 ต่อเที่ยวที่อยู่นอกเวลา 08:00–21:00 (เข้าจอด/รับรถ) — รวมได้สูงสุด 100."""
+    fee = 0
+    if _is_off_hours(start):
+        fee += OFF_HOURS_FEE
+    if _is_off_hours(end):
+        fee += OFF_HOURS_FEE
+    return fee
+
+
 def short_ref(booking_id: str) -> str:
     """Turn a uuid into a friendly reference like RC-9C18F969."""
     if not booking_id:

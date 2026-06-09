@@ -4,6 +4,7 @@ import { Booking, CarType, Language, ParkingSlot, Zone } from '../types';
 import { translations } from '../data/i18n';
 import { recommendZone, NOW } from '../data/mockData';
 import { ThaiDateTimePicker } from './Thaidatetimepicker';
+import { ProvinceCombobox } from './ProvinceCombobox';
 import { supabase } from '../lib/supabase';
 
 interface CarModel {
@@ -104,6 +105,16 @@ export const AddBookingModal: React.FC<AddBookingModalProps> = ({ onClose, onAdd
 
     if (form.remarks && form.remarks.length > 1000) {
       alert(lang === 'th' ? 'หมายเหตุต้องไม่เกิน 1,000 ตัวอักษร' : 'Remarks must not exceed 1,000 characters.');
+      return;
+    }
+
+    // ล็อกวันย้อนหลัง + วันออกต้องหลังวันเข้า
+    if (form.checkIn < formatLocalDatetime(NOW).slice(0, 10)) {
+      alert(lang === 'th' ? 'ไม่สามารถเลือกวันที่ย้อนหลังได้' : 'Cannot select a past date.');
+      return;
+    }
+    if (new Date(form.checkOut) <= new Date(form.checkIn)) {
+      alert(lang === 'th' ? 'วันรับรถต้องอยู่หลังวันเข้าจอด' : 'Check-out must be after check-in.');
       return;
     }
 
@@ -237,6 +248,7 @@ export const AddBookingModal: React.FC<AddBookingModalProps> = ({ onClose, onAdd
                 placeholder="08x-xxx-xxxx" 
               />
             </div>
+            {/* ลำดับ: ประเภทรถ → ยี่ห้อ → รุ่น → ทะเบียน → จังหวัด */}
             <div className="col-span-2">
               <label className="text-xs font-semibold text-slate-500 mb-1 block">{t.modal.carType}</label>
               <select className="input-field text-slate-500" value={form.carType} onChange={e => setForm({ ...form, carType: e.target.value as CarType })}>
@@ -244,14 +256,6 @@ export const AddBookingModal: React.FC<AddBookingModalProps> = ({ onClose, onAdd
                   <option key={key} value={key}>{label}</option>
                 ))}
               </select>
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-500 mb-1 block">{t.modal.plate}</label>
-              <input className="input-field" value={form.plate} onChange={e => setForm({ ...form, plate: e.target.value })} placeholder="กข 1234" />
-            </div>
-            <div>
-              <label className="text-xs font-semibold text-slate-500 mb-1 block">{t.modal.province}</label>
-              <input className="input-field" value={form.province} onChange={e => setForm({ ...form, province: e.target.value })} placeholder="กรุงเทพ" />
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-500 mb-1 block">{t.modal.brand}</label>
@@ -284,6 +288,18 @@ export const AddBookingModal: React.FC<AddBookingModalProps> = ({ onClose, onAdd
                 ))}
               </select>
             </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">{t.modal.plate}</label>
+              <input className="input-field" value={form.plate} onChange={e => setForm({ ...form, plate: e.target.value })} placeholder="กข 1234" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">{t.modal.province}</label>
+              <ProvinceCombobox
+                value={form.province}
+                onChange={p => setForm({ ...form, province: p })}
+                placeholder={lang === 'th' ? 'พิมพ์ค้นหาจังหวัด...' : 'Search province...'}
+              />
+            </div>
           </div>
 
           {/* Recommended Zone */}
@@ -302,13 +318,21 @@ export const AddBookingModal: React.FC<AddBookingModalProps> = ({ onClose, onAdd
           <div className="space-y-3">
             <ThaiDateTimePicker
               value={form.checkIn}
-              onChange={v => setForm({ ...form, checkIn: v })}
+              onChange={v => {
+                // ล็อกไม่ให้เลือกย้อนหลัง — ถ้าเลือกก่อนปัจจุบัน snap กลับมาเป็นเวลาปัจจุบัน
+                const min = formatLocalDatetime(NOW);
+                setForm({ ...form, checkIn: v < min ? min : v });
+              }}
               label={t.modal.checkIn}
               lang={lang}
             />
             <ThaiDateTimePicker
               value={form.checkOut}
-              onChange={v => setForm({ ...form, checkOut: v })}
+              onChange={v => {
+                // วันออกต้องไม่ก่อนวันเข้า และไม่ย้อนหลัง
+                const min = form.checkIn > formatLocalDatetime(NOW) ? form.checkIn : formatLocalDatetime(NOW);
+                setForm({ ...form, checkOut: v < min ? min : v });
+              }}
               label={t.modal.checkOut}
               lang={lang}
             />

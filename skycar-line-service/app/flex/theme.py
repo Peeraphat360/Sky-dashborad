@@ -16,12 +16,27 @@ SUCCESS = "#047857"        # emerald-700
 SUCCESS_BG = "#e7f6ef"
 HAIRLINE = "#eef2f6"
 
+# ── Amber / gold accents (สลิปยืนยันการจอง — เด่นชัดด้วยโทนเหลือง) ──
+AMBER = "#f59e0b"          # amber-500
+AMBER_DARK = "#b45309"     # amber-700
+AMBER_SURFACE = "#fffbeb"  # amber-50
+AMBER_BORDER = "#fcd34d"   # amber-300
+TEXT_ON_AMBER = "#78350f"  # amber-900
+
 # Gradient for the hero header (gives depth)
 HEADER_GRADIENT = {
     "type": "linearGradient",
     "angle": "160deg",
     "startColor": "#0b3a57",
     "endColor": "#0284c7",
+}
+
+# Warm gold gradient for the confirmation slip header
+AMBER_GRADIENT = {
+    "type": "linearGradient",
+    "angle": "160deg",
+    "startColor": "#b45309",
+    "endColor": "#f59e0b",
 }
 
 
@@ -51,8 +66,8 @@ def logo_badge(logo_url: str) -> dict:
     }
 
 
-def gold_divider() -> dict:
-    """Short centered gold line — luxury accent under the title."""
+def gold_divider(color: str = GOLD) -> dict:
+    """Short centered accent line under the title (luxury touch)."""
     return {
         "type": "box",
         "layout": "vertical",
@@ -64,7 +79,7 @@ def gold_divider() -> dict:
                 "layout": "vertical",
                 "width": "46px",
                 "height": "3px",
-                "backgroundColor": GOLD,
+                "backgroundColor": color,
                 "cornerRadius": "3px",
                 "contents": [{"type": "filler"}],
             }

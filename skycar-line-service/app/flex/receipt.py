@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from ..schemas import BookingContext
-from ..utils import money, rental_days, short_ref, thai_date, thai_datetime
+from ..utils import (
+    money, off_hours_surcharge, rental_days, short_ref, thai_date, thai_datetime,
+)
 from . import theme
 
 
@@ -16,6 +18,7 @@ def build_receipt_flex(ctx: BookingContext, *, logo_url: str, shop_phone: str) -
     per_day = ctx.fee if ctx.fee is not None else (amount / days if days else amount)
     car = f"{ctx.vehicle_brand} {ctx.vehicle_model}".strip() or "-"
     plate = ctx.vehicle_plate or "-"
+    surcharge = off_hours_surcharge(ctx.start_time, ctx.end_time)
 
     # ── Hero header (gradient + logo medallion + gold accent) ──
     header = {
@@ -79,6 +82,10 @@ def build_receipt_flex(ctx: BookingContext, *, logo_url: str, shop_phone: str) -
             theme.bi_row("วันคืนรถ", "Return", thai_date(ctx.end_time)),
             theme.bi_row("จำนวนวัน", "Duration", f"{days} วัน · {days} day(s)"),
             theme.bi_row("ราคา/วัน", "Rate / day", f"{money(per_day)} บาท"),
+            *([theme.bi_row(
+                "ค่าบริการรับส่งนอกเวลา", "Off-hours fee",
+                f"+{money(surcharge)} บาท", value_color=theme.AMBER_DARK,
+            )] if surcharge else []),
             total_block,
         ],
     }
