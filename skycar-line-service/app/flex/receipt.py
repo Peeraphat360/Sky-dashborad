@@ -8,6 +8,18 @@ from ..utils import (
 from . import theme
 
 
+def _method_label(method: str | None) -> str:
+    """แปลงวิธีชำระเงินเป็นข้อความสองภาษา."""
+    m = (method or "").upper()
+    if m == "CASH":
+        return "เงินสด · Cash"
+    if m in ("QR", "PROMPTPAY", "TRANSFER"):
+        return "โอนเงิน · Transfer"
+    if m == "STRIPE":
+        return "บัตรเครดิต · Card"
+    return method or "-"
+
+
 def build_receipt_flex(ctx: BookingContext, *, logo_url: str, shop_phone: str) -> dict:
     """Return a LINE Flex *bubble* dict for the rental receipt.
 
@@ -86,6 +98,8 @@ def build_receipt_flex(ctx: BookingContext, *, logo_url: str, shop_phone: str) -
                 "ค่าบริการรับส่งนอกเวลา", "Off-hours fee",
                 f"+{money(surcharge)} บาท", value_color=theme.AMBER_DARK,
             )] if surcharge else []),
+            theme.bi_row("วิธีชำระเงิน", "Payment method", _method_label(ctx.method),
+                         value_color=theme.PRIMARY),
             total_block,
         ],
     }
