@@ -9,14 +9,19 @@ import {
   ArrowPathIcon,
   SparklesIcon,
   XMarkIcon,
+  PlusIcon,
 } from '@heroicons/react/24/outline';
-import { Booking, Language } from '../types';
+import { Booking, Language, ParkingSlot } from '../types';
 import { CustomerAvatar } from './CustomerAvatar';
+import { AddBookingModal, PrefillCustomer } from './AddBookingModal';
 import { translations } from '../data/i18n';
 
 interface HistoryProps {
   bookings: Booking[];
+  slots?: ParkingSlot[];
   lang: Language;
+  onAdd?: (booking: Booking) => void;
+  onUpdateCustomer?: (userId: string, fields: { name?: string; phone?: string }) => void;
 }
 
 function formatDateShort(d: Date, lang: Language) {
@@ -41,9 +46,26 @@ interface CustomerGroup {
   pictureUrl?: string;       // รูปโปรไฟล์ LINE
 }
 
-export const History: React.FC<HistoryProps> = ({ bookings, lang }) => {
+export const History: React.FC<HistoryProps> = ({ bookings, slots = [], lang, onAdd, onUpdateCustomer }) => {
   const t = translations[lang];
   const [search, setSearch] = useState('');
+  const [walkinPrefill, setWalkinPrefill] = useState<PrefillCustomer | null>(null);
+
+  // สร้างข้อมูล pre-fill จากลูกค้าที่เลือก + รถจากการจองครั้งล่าสุด
+  const openWalkin = (cust: CustomerGroup) => {
+    const lastBooking = [...cust.bookings].sort((a, b) => b.checkIn.getTime() - a.checkIn.getTime())[0];
+    setWalkinPrefill({
+      customerId: cust.customerId,
+      name: cust.name,
+      phone: cust.phone,
+      altPhone: cust.altPhone,
+      plate: lastBooking?.vehicle.plate,
+      province: lastBooking?.vehicle.province,
+      brand: lastBooking?.vehicle.brand,
+      model: lastBooking?.vehicle.model,
+      carType: lastBooking?.vehicle.type,
+    });
+  };
   const [selected, setSelected] = useState<CustomerGroup | null>(null);
 
   // ─── นับจำนวน booking ทั้งหมดต่อลูกค้า (ใช้ LINE id จาก login เป็น key) ─────
@@ -57,11 +79,15 @@ export const History: React.FC<HistoryProps> = ({ bookings, lang }) => {
     allBookingCountByKey.set(k, (allBookingCountByKey.get(k) ?? 0) + 1);
   });
 
-  const completedBookings = bookings.filter(b => b.status === 'completed');
+  // รวม booking ที่ยัง active อยู่ด้วย (confirmed/active) ไม่ใช่แค่ completed
+  // → walk-in ที่เพิ่งสร้าง (confirmed) จะโผล่ในประวัติลูกค้าทันที (ยอดเงินนับเฉพาะที่จ่ายแล้ว)
+  const relevantBookings = bookings.filter(
+    b => b.status === 'completed' || b.status === 'confirmed' || b.status === 'active'
+  );
 
-  // Group by customer phone (เบอร์โทร) แทน user_id
+  // Group by customer (LINE id / เบอร์ / user id)
   const customerMap = new Map<string, CustomerGroup>();
-  completedBookings.forEach(b => {
+  relevantBookings.forEach(b => {
     const key = customerKey(b.customer);
     if (!customerMap.has(key)) {
       customerMap.set(key, {
@@ -82,7 +108,7 @@ export const History: React.FC<HistoryProps> = ({ bookings, lang }) => {
     grp.bookings.push(b);
     if (!grp.plates.includes(b.vehicle.plate)) grp.plates.push(b.vehicle.plate);
     if (!grp.altPhone && b.customer.altPhone) grp.altPhone = b.customer.altPhone;
-    grp.totalSpend += b.fee;
+    if (b.status === 'completed') grp.totalSpend += b.fee;   // นับยอดเฉพาะที่จ่ายแล้ว
     if (b.checkIn > grp.lastVisit) grp.lastVisit = b.checkIn;
   });
 
@@ -315,7 +341,7 @@ export const History: React.FC<HistoryProps> = ({ bookings, lang }) => {
                   <p className="text-xs text-slate-400">{t.history.totalVisits}</p>
                 </div>
                 <div className="bg-slate-50 rounded-xl p-3 text-center">
-                  <p className="text-xl font-bold text-slate-700">฿{Math.round(selected.totalSpend / selected.bookings.length).toLocaleString()}</p>
+                  <p className="text-xl font-bold text-slate-700">฿{Math.round(selected.totalSpend / Math.max(1, selected.bookings.filter(b => b.status === 'completed').length)).toLocaleString()}</p>
                   <p className="text-xs text-slate-400">{lang === 'th' ? 'เฉลี่ย/ครั้ง' : 'Avg/visit'}</p>
                 </div>
                 <div className="bg-slate-50 rounded-xl p-3 text-center">
@@ -325,10 +351,21 @@ export const History: React.FC<HistoryProps> = ({ bookings, lang }) => {
               </div>
 
               {/* Booking history */}
-              <h4 className="font-semibold text-slate-600 text-sm mb-3 flex items-center gap-2">
-                <CalendarDaysIcon className="w-4 h-4" />
-                {t.history.bookingHistory}
-              </h4>
+              <div className="flex items-center justify-between mb-3 gap-2">
+                <h4 className="font-semibold text-slate-600 text-sm flex items-center gap-2">
+                  <CalendarDaysIcon className="w-4 h-4" />
+                  {t.history.bookingHistory}
+                </h4>
+                {onAdd && (
+                  <button
+                    onClick={() => openWalkin(selected)}
+                    className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-600 to-sky-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-md shadow-blue-500/30 ring-1 ring-white/25 transition hover:-translate-y-0.5 hover:shadow-lg active:scale-95"
+                  >
+                    <PlusIcon className="w-3.5 h-3.5" />
+                    {lang === 'th' ? 'จอง Walk-in' : 'New Walk-in'}
+                  </button>
+                )}
+              </div>
               <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                 {selected.bookings
                   .sort((a, b) => b.checkIn.getTime() - a.checkIn.getTime())
@@ -357,6 +394,19 @@ export const History: React.FC<HistoryProps> = ({ bookings, lang }) => {
           )}
         </div>
       </div>
+
+      {/* ฟอร์มจอง Walk-in (pre-fill ข้อมูลลูกค้าเดิม) */}
+      {walkinPrefill && onAdd && (
+        <AddBookingModal
+          onClose={() => setWalkinPrefill(null)}
+          onAdd={onAdd}
+          slots={slots}
+          bookings={bookings}
+          lang={lang}
+          prefill={walkinPrefill}
+          onUpdateCustomer={onUpdateCustomer}
+        />
+      )}
     </div>
   );
 };

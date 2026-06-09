@@ -60,12 +60,16 @@ def _is_off_hours(dt: datetime) -> bool:
 
 def off_hours_surcharge(start: datetime, end: datetime) -> int:
     """+50 ต่อเที่ยวที่อยู่นอกเวลา 08:00–21:00 (เข้าจอด/รับรถ) — รวมได้สูงสุด 100."""
-    fee = 0
-    if _is_off_hours(start):
-        fee += OFF_HOURS_FEE
-    if _is_off_hours(end):
-        fee += OFF_HOURS_FEE
-    return fee
+    a, b = off_hours_legs(start, end)
+    return a + b
+
+
+def off_hours_legs(start: datetime, end: datetime) -> tuple[int, int]:
+    """คืน (ค่าบริการขาเข้า, ค่าบริการขาออก) — แต่ละขา 0 หรือ 50."""
+    return (
+        OFF_HOURS_FEE if _is_off_hours(start) else 0,
+        OFF_HOURS_FEE if _is_off_hours(end) else 0,
+    )
 
 
 def short_ref(booking_id: str) -> str:

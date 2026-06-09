@@ -120,8 +120,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ booking, feeBreakdown: fb, 
   const discount = Math.min(parsedValue, MAX_COUPON_DISCOUNT);
   const finalTotal = Math.max(0, originalTotal - discount);
 
-  // ─── Payment step: 'method' = หน้าเลือกช่องทาง, 'qr' = หน้าแสดง QR ของร้าน ───
-  const [step, setStep] = useState<'method' | 'qr'>('method');
+  // ─── Payment step: 'method' = เลือกช่องทาง, 'qr' = โอนเงิน, 'cash' = รับเงินสด ───
+  const [step, setStep] = useState<'method' | 'qr' | 'cash'>('method');
   // ยอดเงินบนหน้า QR ที่ admin พิมพ์แก้ได้เอง (เริ่มจากยอดสุทธิที่คำนวณไว้)
   const [amount, setAmount] = useState(finalTotal);
 
@@ -220,7 +220,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ booking, feeBreakdown: fb, 
         <div className="p-5 space-y-3 pt-3">
           <p className="text-xs text-slate-500 font-medium">{lang === 'th' ? 'เลือกช่องทางการชำระเงิน' : 'Select payment method'}</p>
           <button
-            onClick={() => onConfirm('cash', finalTotal, couponInput.trim() || undefined)}
+            onClick={() => { setAmount(finalTotal); setStep('cash'); }}
             className="w-full flex items-center gap-3 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 p-3.5 rounded-xl font-semibold transition-colors border border-emerald-200"
           >
             <div className="w-9 h-9 bg-emerald-100 rounded-xl flex items-center justify-center">
@@ -245,7 +245,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ booking, feeBreakdown: fb, 
           </button>
         </div>
         </>
-        ) : (
+        ) : step === 'qr' ? (
         <div className="p-5 space-y-4">
           <p className="text-sm font-semibold text-blue-700 text-center">
             {lang === 'th' ? 'สแกนเพื่อโอนเงิน' : 'Scan to transfer'}
@@ -282,6 +282,51 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ booking, feeBreakdown: fb, 
           <button
             onClick={() => onConfirm('transfer', amount, couponInput.trim() || undefined)}
             className="w-full bg-blue-600 text-white hover:bg-blue-700 p-3.5 rounded-xl font-semibold transition-colors"
+          >
+            {lang === 'th' ? 'ยืนยันรับชำระแล้ว' : 'Confirm received'}
+          </button>
+          <button
+            onClick={() => setStep('method')}
+            className="w-full bg-slate-50 text-slate-600 hover:bg-slate-100 p-3 rounded-xl font-medium transition-colors border border-slate-100"
+          >
+            {lang === 'th' ? 'ย้อนกลับ' : 'Back'}
+          </button>
+        </div>
+        ) : (
+        /* ── หน้ารับเงินสด (คล้ายหน้าโอนเงิน) ── */
+        <div className="p-5 space-y-4">
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center">
+              <BanknotesIcon className="w-7 h-7 text-emerald-600" />
+            </div>
+            <p className="text-sm font-semibold text-emerald-700">
+              {lang === 'th' ? 'รับชำระด้วยเงินสด' : 'Cash payment'}
+            </p>
+          </div>
+          {/* ยอดเงินสดที่รับ — แก้ไขได้ */}
+          <div className="bg-emerald-50 rounded-xl border border-emerald-100 p-4">
+            <label className="text-xs text-emerald-700 font-medium mb-1 block">
+              {lang === 'th' ? 'จำนวนเงินที่รับ' : 'Amount received'}
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="text-3xl font-bold text-emerald-700">฿</span>
+              <input
+                type="number"
+                min={0}
+                value={amount}
+                onChange={e => setAmount(Number.isNaN(e.target.valueAsNumber) ? 0 : e.target.valueAsNumber)}
+                className="w-full bg-transparent text-3xl font-bold text-emerald-700 outline-none"
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 mt-2">
+              {lang === 'th'
+                ? 'ตรวจรับเงินสดจากลูกค้าให้ครบก่อนกดยืนยัน'
+                : 'Collect the full cash amount before confirming'}
+            </p>
+          </div>
+          <button
+            onClick={() => onConfirm('cash', amount, couponInput.trim() || undefined)}
+            className="w-full bg-emerald-600 text-white hover:bg-emerald-700 p-3.5 rounded-xl font-semibold transition-colors"
           >
             {lang === 'th' ? 'ยืนยันรับชำระแล้ว' : 'Confirm received'}
           </button>

@@ -12,6 +12,19 @@ interface CarModel {
   model: string;
 }
 
+// ข้อมูลลูกค้าเดิม (ดึงมา pre-fill ตอนจอง Walk-in จากหน้าประวัติลูกค้า)
+export interface PrefillCustomer {
+  customerId: string;
+  name: string;
+  phone: string;
+  altPhone?: string;
+  plate?: string;
+  province?: string;
+  brand?: string;
+  model?: string;
+  carType?: CarType;
+}
+
 interface AddBookingModalProps {
   onClose: () => void;
   onAdd: (booking: Booking) => void;
@@ -20,9 +33,11 @@ interface AddBookingModalProps {
   bookings: Booking[];
   lang: Language;
   editingBooking?: Booking | null;
+  prefill?: PrefillCustomer | null;
+  onUpdateCustomer?: (userId: string, fields: { name?: string; phone?: string }) => void;
 }
 
-export const AddBookingModal: React.FC<AddBookingModalProps> = ({ onClose, onAdd, onEdit, slots, bookings, lang, editingBooking }) => {
+export const AddBookingModal: React.FC<AddBookingModalProps> = ({ onClose, onAdd, onEdit, slots, bookings, lang, editingBooking, prefill, onUpdateCustomer }) => {
   const t = translations[lang];
 
   const formatLocalDatetime = (date: Date) => {
@@ -31,21 +46,20 @@ export const AddBookingModal: React.FC<AddBookingModalProps> = ({ onClose, onAdd
   };
 
   const [form, setForm] = useState({
-    name: editingBooking?.customer.name || '',
-    phone: editingBooking?.customer.phone || '',
-    altPhone: editingBooking?.customer.altPhone || '',
-    plate: editingBooking?.vehicle.plate || '',
-    province: editingBooking?.vehicle.province || '',
-    brand: editingBooking?.vehicle.brand || '',
-    model: editingBooking?.vehicle.model || '',
-    carType: editingBooking?.vehicle.type || 'sedan' as CarType,
+    name: editingBooking?.customer.name || prefill?.name || '',
+    phone: editingBooking?.customer.phone || prefill?.phone || '',
+    altPhone: editingBooking?.customer.altPhone || prefill?.altPhone || '',
+    plate: editingBooking?.vehicle.plate || prefill?.plate || '',
+    province: editingBooking?.vehicle.province || prefill?.province || '',
+    brand: editingBooking?.vehicle.brand || prefill?.brand || '',
+    model: editingBooking?.vehicle.model || prefill?.model || '',
+    carType: editingBooking?.vehicle.type || prefill?.carType || 'sedan' as CarType,
     checkIn: editingBooking ? formatLocalDatetime(editingBooking.checkIn) : formatLocalDatetime(NOW),
     checkOut: editingBooking ? formatLocalDatetime(editingBooking.checkOut) : '',
     remarks: editingBooking?.remarks || '',
   });
 
   const [recommended, setRecommended] = useState<Zone>(editingBooking ? editingBooking.zone : 'B');
-  const [estimatedFee, setEstimatedFee] = useState(0);
 
   // Car brand/model data fetched from Supabase (car_models table)
   const [carModels, setCarModels] = useState<CarModel[]>([]);
@@ -79,13 +93,21 @@ export const AddBookingModal: React.FC<AddBookingModalProps> = ({ onClose, onAdd
     setRecommended(recommendZone(form.carType) as Zone);
   }, [form.carType]);
 
-  useEffect(() => {
-    if (form.checkIn && form.checkOut) {
-      const diff = new Date(form.checkOut).getTime() - new Date(form.checkIn).getTime();
-      const days = Math.max(1, Math.ceil(diff / (1000 * 60 * 60 * 24)));
-      setEstimatedFee(days * 150);
-    }
-  }, [form.checkIn, form.checkOut]);
+  // ── ค่าบริการ: ฐาน (วันละ 150) + ค่าบริการนอกเวลา (+50 ต่อขา ก่อน 08:00 / หลัง 21:00) ──
+  const offHoursFee = (datetimeLocal: string): number => {
+    const t = (datetimeLocal.split('T')[1] || '');
+    if (!t) return 0;
+    const [h, m] = t.split(':').map(Number);
+    const mins = (h || 0) * 60 + (m || 0);
+    return mins < 8 * 60 || mins > 21 * 60 ? 50 : 0;   // 08:00/21:00 ตรง = ฟรี
+  };
+  const rentalDays = form.checkIn && form.checkOut
+    ? Math.max(1, Math.ceil((new Date(form.checkOut).getTime() - new Date(form.checkIn).getTime()) / 86400000))
+    : 0;
+  const baseFee = rentalDays * 150;
+  const surchargeIn = form.checkIn ? offHoursFee(form.checkIn) : 0;
+  const surchargeOut = form.checkOut ? offHoursFee(form.checkOut) : 0;
+  const estimatedFee = baseFee + surchargeIn + surchargeOut;
 
   const handleSubmit = () => {
     if (!form.name || !form.phone || !form.plate || !form.checkIn || !form.checkOut) {
@@ -174,7 +196,7 @@ export const AddBookingModal: React.FC<AddBookingModalProps> = ({ onClose, onAdd
       slotId: slot.id,
       zone: slot.zone,
       slotNumber: slot.number,
-      customer: { id: `C-${Date.now()}`, name: form.name, phone: form.phone, altPhone: form.altPhone || undefined },
+      customer: { id: prefill?.customerId || `C-${Date.now()}`, name: form.name, phone: form.phone, altPhone: form.altPhone || undefined },
       vehicle: {
         plate: form.plate,
         province: form.province,
@@ -190,6 +212,14 @@ export const AddBookingModal: React.FC<AddBookingModalProps> = ({ onClose, onAdd
       isWalkIn: true,
       remarks: form.remarks || undefined,
     };
+
+    // จอง Walk-in จากหน้าประวัติ: ถ้าแก้ชื่อ/เบอร์จากโปรไฟล์เดิม ให้ถามก่อนว่าจะอัปเดตโปรไฟล์ไหม
+    if (prefill && onUpdateCustomer && (form.name !== prefill.name || form.phone !== prefill.phone)) {
+      const updateProfile = window.confirm(lang === 'th'
+        ? 'ข้อมูลลูกค้าถูกแก้ไข — อัปเดตกลับเข้าโปรไฟล์ลูกค้าด้วยไหม?\n\nตกลง = อัปเดตโปรไฟล์\nยกเลิก = ใช้เฉพาะการจองครั้งนี้'
+        : 'Customer info changed — also update the customer profile?\n\nOK = update profile\nCancel = this booking only');
+      if (updateProfile) onUpdateCustomer(prefill.customerId, { name: form.name, phone: form.phone });
+    }
 
     onAdd(newBooking);
     onClose();
@@ -358,11 +388,29 @@ export const AddBookingModal: React.FC<AddBookingModalProps> = ({ onClose, onAdd
             )}
           </div>
 
-          {/* Estimated fee */}
+          {/* Estimated fee + ค่าบริการนอกเวลา (แยกบรรทัด ขาเข้า/ขาออก) */}
           {estimatedFee > 0 && (
-            <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl border border-blue-100">
-              <span className="text-sm text-blue-700 font-medium">{t.modal.estimatedFee}</span>
-              <span className="text-xl font-bold text-blue-700">฿{estimatedFee.toLocaleString()}</span>
+            <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 space-y-1.5">
+              <div className="flex items-center justify-between text-xs text-slate-600">
+                <span>{lang === 'th' ? 'ค่าจอดรถ' : 'Parking'} ({rentalDays} {lang === 'th' ? 'วัน' : 'days'})</span>
+                <span className="font-medium">฿{baseFee.toLocaleString()}</span>
+              </div>
+              {surchargeIn > 0 && (
+                <div className="flex items-center justify-between text-xs text-amber-600">
+                  <span>{lang === 'th' ? 'ค่าบริการนอกเวลา (ขาเข้า)' : 'Off-hours (check-in)'}</span>
+                  <span className="font-medium">+฿{surchargeIn}</span>
+                </div>
+              )}
+              {surchargeOut > 0 && (
+                <div className="flex items-center justify-between text-xs text-amber-600">
+                  <span>{lang === 'th' ? 'ค่าบริการนอกเวลา (ขาออก)' : 'Off-hours (check-out)'}</span>
+                  <span className="font-medium">+฿{surchargeOut}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between border-t border-blue-200 pt-1.5">
+                <span className="text-sm text-blue-700 font-medium">{t.modal.estimatedFee}</span>
+                <span className="text-xl font-bold text-blue-700">฿{estimatedFee.toLocaleString()}</span>
+              </div>
             </div>
           )}
 

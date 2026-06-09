@@ -226,8 +226,12 @@ function AppInner() {
 
   // เพิ่ม Walk-in: insert booking CONFIRMED + จองช่อง (RESERVED) แบบ atomic พร้อมกันช่องไม่ว่าง
   const handleAddBooking = useCallback(async (booking: Booking) => {
+    // ถ้า booking ผูกกับลูกค้าจริง (customer.id เป็น uuid เช่น walk-in จากหน้าประวัติ)
+    // ให้ใช้ user id นั้น — ไม่งั้นใช้ลูกค้า walk-in รวม (เพิ่มการจองทั่วไป)
+    const isUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+    const ownerId = isUuid(booking.customer.id) ? booking.customer.id : WALKIN_USER_ID;
     const { error } = await supabase.rpc('create_walkin_booking', {
-      p_user_id: WALKIN_USER_ID,
+      p_user_id: ownerId,
       p_slot_id: booking.slotId,
       p_start_time: booking.checkIn,
       p_end_time: booking.checkOut,
@@ -251,6 +255,21 @@ function AppInner() {
     }
     fetchData();
   }, [fetchData, lang]);
+
+  // อัปเดตข้อมูลโปรไฟล์ลูกค้า (ชื่อ/เบอร์) — เรียกตอน walk-in จากหน้าประวัติแล้ว admin
+  // เลือก "อัปเดตโปรไฟล์" (best-effort; ถ้า RLS บล็อกจะไม่กระทบการจอง)
+  const handleUpdateCustomer = useCallback(async (
+    userId: string,
+    fields: { name?: string; phone?: string },
+  ) => {
+    const payload: Record<string, string> = {};
+    if (fields.name) payload.name = fields.name;
+    if (fields.phone) payload.phone = fields.phone;
+    if (Object.keys(payload).length === 0) return;
+    const { error } = await supabase.from('users').update(payload).eq('id', userId);
+    if (error) console.warn('update customer profile failed:', error.message);
+    fetchData();
+  }, [fetchData]);
 
   // แก้ไขรายละเอียด (ไม่เปลี่ยนสถานะ/ช่องจอด จึง update ตรงได้)
   const handleEditBooking = useCallback(async (updatedBooking: Booking) => {
@@ -328,7 +347,15 @@ function AppInner() {
       case 'parking':
         return <Parking bookings={bookings} lang={lang} onMarkPaid={handleMarkPaid} />;
       case 'history':
-        return <History bookings={bookings} lang={lang} />;
+        return (
+          <History
+            bookings={bookings}
+            slots={slots}
+            lang={lang}
+            onAdd={handleAddBooking}
+            onUpdateCustomer={handleUpdateCustomer}
+          />
+        );
       case 'revenue':
         return <Revenue bookings={bookings} lang={lang} />;
       default:
