@@ -230,13 +230,19 @@ export const ThaiDateTimePicker: React.FC<ThaiDateTimePickerProps> = ({
   const maxDay = daysInMonth(year, month);
   const days = Array.from({ length: maxDay }, (_, i) => String(i + 1).padStart(2, '0'));
   const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
-  const minutes = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+  // เลือกนาทีทีละ 5 (00, 05, 10, ..., 55)
+  const minutes = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
 
   // Clamp day when month/year changes
   useEffect(() => {
     const max = daysInMonth(year, month);
     if (day > max) setDay(max);
   }, [year, month, day]);
+
+  // ถ้านาทีเริ่มต้นไม่ลงตัว 5 (เช่น booking เก่า :43) → ปัดเป็นใกล้สุด (:45)
+  useEffect(() => {
+    if (minute % 5 !== 0) setMinute(Math.min(11, Math.round(minute / 5)) * 5);
+  }, [minute]);
 
   const handleConfirm = () => {
     const out = toOutputString(year, month, day, hour, minute);
@@ -461,11 +467,11 @@ export const ThaiDateTimePicker: React.FC<ThaiDateTimePickerProps> = ({
                 width: 14, textAlign: 'center',
               }}>:</div>
 
-              {/* Minute */}
+              {/* Minute (ทีละ 5 นาที) */}
               <DrumRoller
                 items={minutes}
-                selectedIndex={minute}
-                onSelect={i => setMinute(i)}
+                selectedIndex={Math.min(11, Math.round(minute / 5))}
+                onSelect={i => setMinute(i * 5)}
                 width={62}
               />
             </div>
