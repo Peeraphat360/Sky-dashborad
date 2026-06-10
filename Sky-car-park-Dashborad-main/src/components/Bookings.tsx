@@ -29,6 +29,8 @@ interface BookingsProps {
   onDelete?: (id: string) => void;
   onCheckIn?: (id: string) => void;
   onConfirmPending?: (id: string) => void;
+  filter?: 'confirmed' | 'pending';                       // แท็บที่เลือก (ควบคุมจาก App ได้)
+  onFilterChange?: (f: 'confirmed' | 'pending') => void;
 }
 
 function formatDate(d: Date, lang: Language) {
@@ -255,6 +257,7 @@ const zoneColors: Record<string, string> = {
 // ─── Main Component ───────────────────────────────────────────────────────────
 export const Bookings: React.FC<BookingsProps> = ({
   bookings, slots, lang, onMarkPaid, onCancel, onAdd, onEdit, onCheckIn, onConfirmPending,
+  filter, onFilterChange,
 }) => {
   const t = translations[lang];
   // ✅ ดึง permissions จาก context
@@ -266,7 +269,11 @@ export const Bookings: React.FC<BookingsProps> = ({
   const [confirmCheckInId, setConfirmCheckInId] = useState<string | null>(null);
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
   const [confirmPendingId, setConfirmPendingId] = useState<string | null>(null);
-  const [bookingFilter, setBookingFilter] = useState<'confirmed' | 'pending'>('confirmed');
+  // แท็บ: ถ้า App ส่ง filter/onFilterChange มา → ควบคุมจาก App (เช่น popup สั่งไป "รอยืนยัน")
+  // ไม่งั้นใช้ state ภายในเหมือนเดิม
+  const [localFilter, setLocalFilter] = useState<'confirmed' | 'pending'>('confirmed');
+  const bookingFilter = filter ?? localFilter;
+  const setBookingFilter = onFilterChange ?? setLocalFilter;
 
   // Filter bookings based on status
   const confirmedBookings = bookings.filter(b => b.status === 'confirmed');

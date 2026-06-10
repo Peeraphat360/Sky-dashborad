@@ -66,6 +66,8 @@ function AppInner() {
   const [loading, setLoading] = useState(true);
   // popup แจ้งเตือนเมื่อมีลูกค้าจองออนไลน์เข้ามาใหม่
   const [bookingAlert, setBookingAlert] = useState<{ name: string; plate?: string } | null>(null);
+  // แท็บที่เลือกในหน้าการจอง (ยกขึ้นมาเพื่อให้ popup สั่งไปแท็บ "รอยืนยันออนไลน์" ได้)
+  const [bookingsFilter, setBookingsFilter] = useState<'confirmed' | 'pending'>('confirmed');
 
   const safeTab = permissions?.tabs.includes(activeTab) ? activeTab : defaultTab;
   const handleSetTab = (tab: TabId) => {
@@ -391,6 +393,8 @@ function AppInner() {
             onEdit={handleEditBooking}
             onCheckIn={handleCheckIn}
             onConfirmPending={handleConfirmBooking}
+            filter={bookingsFilter}
+            onFilterChange={setBookingsFilter}
           />
         );
       case 'parking':
@@ -448,7 +452,7 @@ function AppInner() {
                 </button>
               </div>
               <button
-                onClick={() => { handleSetTab('bookings'); setBookingAlert(null); }}
+                onClick={() => { setBookingsFilter('pending'); handleSetTab('bookings'); setBookingAlert(null); }}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 transition-colors"
               >
                 {lang === 'th' ? 'ดูการจอง →' : 'View booking →'}
