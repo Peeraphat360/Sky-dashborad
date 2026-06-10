@@ -24,6 +24,14 @@ const DB_STATUS_TO_FE: Record<string, BookingStatus> = {
   EXPIRED:   'cancelled',
 };
 
+// created_at / paid_at ในDB เป็นเวลา UTC แต่ไม่มี timezone suffix → เติม Z ให้ JS
+// แปลงเป็นเวลาท้องถิ่น (ไทย) ถูกต้อง  (start_time/end_time เก็บเป็น local อยู่แล้ว ไม่ต้องเติม)
+const parseUtc = (s?: string | null): Date => {
+  if (!s) return new Date();
+  const hasTz = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(s);
+  return new Date(hasTz ? s : s + 'Z');
+};
+
 function AppInner() {
   const { isAuthenticated, permissions } = useAuth();
   const defaultTab = (permissions?.tabs[0] ?? 'dashboard') as TabId;
@@ -131,10 +139,10 @@ function AppInner() {
           checkOut: new Date(b.end_time),
           fee: b.fee || 0,
           status: derivedStatus,
-          createdAt: new Date(b.created_at),
+          createdAt: parseUtc(b.created_at),
           isWalkIn: b.is_walk_in !== false,
           paymentMethod: payment ? (payment.method === 'CASH' ? 'cash' : 'transfer') : undefined,
-          paidAt: payment ? new Date(payment.paid_at || payment.created_at) : undefined,
+          paidAt: payment ? parseUtc(payment.paid_at || payment.created_at) : undefined,
           remarks: b.remarks || undefined,
         };
       }));
