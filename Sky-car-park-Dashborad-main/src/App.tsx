@@ -367,7 +367,9 @@ function AppInner() {
 
   if (!isAuthenticated) return <Login />;
 
-  if (loading) return (
+  // แสดงหน้าโหลดเฉพาะตอนโหลดครั้งแรก (ยังไม่มีข้อมูล) — refetch จะไม่ unmount หน้า
+  // เพื่อไม่ให้ state ในหน้า (เช่น แท็บที่เลือก/ค้นหา) ถูกรีเซ็ตหลังปฏิเสธ/แก้ไข
+  if (loading && bookings.length === 0 && slots.length === 0) return (
     <div className="flex h-screen items-center justify-center bg-slate-50">
       <p className="text-slate-400">กำลังโหลด...</p>
     </div>
