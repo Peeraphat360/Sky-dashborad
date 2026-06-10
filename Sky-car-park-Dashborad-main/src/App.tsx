@@ -10,6 +10,7 @@ import { Login } from './components/Login';
 import { Booking, Language, ParkingSlot, TabId, Zone, CarType, SlotStatus, BookingStatus } from './types';
 import { supabase } from './lib/supabase';
 import { calcFee } from './data/mockData';
+import { BellAlertIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 // Customer row used as the owner of walk-in bookings (seeded user).
 const WALKIN_USER_ID = 'fe346324-ff72-4656-9f0a-478da7c91afa';
@@ -32,6 +33,29 @@ const parseUtc = (s?: string | null): Date => {
   return new Date(hasTz ? s : s + 'Z');
 };
 
+// เสียงแจ้งเตือนสั้นๆ (best-effort — ถ้า browser บล็อกก็ข้ามไป)
+function playAlertSound() {
+  try {
+    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    [880, 1175].forEach((freq, i) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sine';
+      o.frequency.value = freq;
+      const t0 = ctx.currentTime + i * 0.18;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.25, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
+      o.start(t0);
+      o.stop(t0 + 0.18);
+    });
+    setTimeout(() => ctx.close(), 600);
+  } catch { /* ignore */ }
+}
+
 function AppInner() {
   const { isAuthenticated, permissions } = useAuth();
   const defaultTab = (permissions?.tabs[0] ?? 'dashboard') as TabId;
@@ -40,6 +64,8 @@ function AppInner() {
   const [slots, setSlots] = useState<ParkingSlot[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  // popup แจ้งเตือนเมื่อมีลูกค้าจองออนไลน์เข้ามาใหม่
+  const [bookingAlert, setBookingAlert] = useState<{ name: string; plate?: string } | null>(null);
 
   const safeTab = permissions?.tabs.includes(activeTab) ? activeTab : defaultTab;
   const handleSetTab = (tab: TabId) => {
@@ -177,8 +203,14 @@ function AppInner() {
         event: '*',
         schema: 'public',
         table: 'bookings',
-      }, () => {
+      }, (payload: any) => {
         fetchData();
+        const row = payload?.new;
+        // จองออนไลน์ใหม่ (PENDING + ไม่ใช่ walk-in) → เด้ง popup แจ้งแอดมิน + เสียง
+        if (payload?.eventType === 'INSERT' && row && row.status === 'PENDING' && row.is_walk_in === false) {
+          setBookingAlert({ name: row.customer_name || 'ลูกค้า', plate: row.vehicle_plate || undefined });
+          playAlertSound();
+        }
       })
       .subscribe();
 
@@ -187,6 +219,13 @@ function AppInner() {
       supabase.removeChannel(bookingsChannel);
     };
   }, [isAuthenticated, fetchData]);
+
+  // ปิด popup แจ้งเตือนอัตโนมัติหลัง 12 วินาที
+  useEffect(() => {
+    if (!bookingAlert) return;
+    const t = setTimeout(() => setBookingAlert(null), 12000);
+    return () => clearTimeout(t);
+  }, [bookingAlert]);
 
   // ─── LINE service ─────────────────────────────────────────────────────────
   // แจ้ง LINE service ให้ push ข้อความเข้า LINE ลูกค้า (best-effort — ไม่บล็อก UI
@@ -377,6 +416,45 @@ function AppInner() {
       <main className="flex-1 md:ml-60 h-screen overflow-y-auto pb-16 md:pb-0">
         {renderTab()}
       </main>
+
+      {/* Popup แจ้งเตือนจองออนไลน์ใหม่ */}
+      {bookingAlert && (
+        <>
+          <style>{`@keyframes alertFade{from{opacity:0}to{opacity:1}}`}</style>
+          <div
+            className="fixed top-4 left-1/2 -translate-x-1/2 sm:left-auto sm:right-4 sm:translate-x-0 z-[60] w-[92%] sm:w-80"
+            style={{ animation: 'alertFade 0.3s ease' }}
+          >
+            <div className="rounded-2xl bg-white shadow-2xl ring-1 ring-black/5 overflow-hidden">
+              <div className="flex items-start gap-3 p-4">
+                <div className="relative flex-shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                    <BellAlertIcon className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 animate-ping" />
+                  <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-slate-800">{lang === 'th' ? '🔔 มีการจองใหม่!' : '🔔 New booking!'}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{lang === 'th' ? 'ลูกค้าจองออนไลน์เข้ามา' : 'New online booking received'}</p>
+                  <p className="text-sm font-semibold text-slate-700 mt-1 truncate">
+                    {bookingAlert.name}{bookingAlert.plate ? ` · ${bookingAlert.plate}` : ''}
+                  </p>
+                </div>
+                <button onClick={() => setBookingAlert(null)} className="p-1 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors">
+                  <XMarkIcon className="w-4 h-4" />
+                </button>
+              </div>
+              <button
+                onClick={() => { handleSetTab('bookings'); setBookingAlert(null); }}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 transition-colors"
+              >
+                {lang === 'th' ? 'ดูการจอง →' : 'View booking →'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
