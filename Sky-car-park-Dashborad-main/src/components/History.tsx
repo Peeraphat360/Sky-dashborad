@@ -262,13 +262,13 @@ export const History: React.FC<HistoryProps> = ({ bookings, slots = [], lang, on
         )}
 
         {/* Customer detail — desktop: คอลัมน์ขวา · mobile: bottom sheet เด้งจากล่าง */}
-        <div className={`md:col-span-2 ${
+        <div className={`md:col-span-2 md:self-start md:sticky md:top-4 md:max-h-[calc(100vh-2rem)] md:overflow-y-auto ${
           selected
             ? 'max-md:fixed max-md:inset-x-0 max-md:bottom-0 max-md:z-50 max-md:max-h-[85vh] max-md:overflow-y-auto max-md:rounded-t-3xl max-md:bg-white max-md:shadow-2xl'
             : ''
         }`}>
           {!selected ? (
-            <div className="card hidden md:flex h-full flex-col items-center justify-center text-slate-300 p-12">
+            <div className="card hidden md:flex min-h-[60vh] flex-col items-center justify-center text-slate-300 p-12">
               <UserCircleIcon className="w-16 h-16 mb-3" />
               <p className="text-sm">{lang === 'th' ? 'เลือกลูกค้าเพื่อดูรายละเอียด' : 'Select a customer to view details'}</p>
             </div>
