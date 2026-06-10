@@ -522,12 +522,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ slots, bookings, lang, onM
     return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
   }).length;
 
-  const statCards = [
+  const statCards: Array<{ label: string; value: string | number; suffix?: string; icon: any; color: string; bg: string }> = [
     { label: t.dashboard.totalSlots, value: totalSlots, icon: SquaresPlusIcon, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: t.dashboard.occupied, value: occupied, icon: CheckCircleIcon, color: 'text-red-500', bg: 'bg-red-50' },
+    // ใช้งานอยู่ + อัตราการใช้งานในวงเล็บ (suffix แสดงเป็นตัวเล็กกว่า)
+    { label: t.dashboard.occupied, value: occupied, suffix: `(${occupancyPct}%)`, icon: CheckCircleIcon, color: 'text-red-500', bg: 'bg-red-50' },
     { label: t.dashboard.available, value: available, icon: CheckCircleIcon, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { label: t.dashboard.todayBookings, value: todayBookings, icon: CalendarDaysIcon, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { label: t.dashboard.occupancyRate, value: `${occupancyPct}%`, icon: SquaresPlusIcon, color: 'text-sky-600', bg: 'bg-sky-50' },
   ];
 
   const weekData = buildWeekData(bookings);
@@ -584,7 +584,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ slots, bookings, lang, onM
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs text-slate-400 font-medium">{card.label}</p>
-                <p className={`text-xl md:text-2xl font-bold mt-1 ${card.color}`}>{card.value}</p>
+                <p className={`text-xl md:text-2xl font-bold mt-1 ${card.color}`}>
+                  {card.value}
+                  {card.suffix && <span className="ml-1 text-xs md:text-sm font-semibold opacity-70">{card.suffix}</span>}
+                </p>
               </div>
               <div className={`w-8 h-8 md:w-9 md:h-9 rounded-xl ${card.bg} flex items-center justify-center`}>
                 <card.icon className={`w-4 h-4 md:w-5 md:h-5 ${card.color}`} />
