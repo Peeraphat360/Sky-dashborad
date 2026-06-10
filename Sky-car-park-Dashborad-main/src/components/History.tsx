@@ -126,24 +126,23 @@ export const History: React.FC<HistoryProps> = ({ bookings, slots = [], lang, on
   const newCount = customers.filter(c => !c.isReturning).length;
 
   const q = search.toLowerCase().trim();
-  const isPlateSearch = /^[ก-ฮa-zA-Z]/.test(q) && q.length >= 2;
 
+  // ค้นหาแบบรวม: ชื่อ / เบอร์ / เบอร์สำรอง / ทะเบียน พร้อมกัน (ไม่ต้องเดาว่าเป็นทะเบียนหรือชื่อ)
   let filtered = customers;
   let plateMatch: { customer: CustomerGroup; plate: string } | null = null;
 
   if (q) {
-    if (isPlateSearch) {
-      // Search by plate
-      const found = customers.find(c => c.plates.some(p => p.toLowerCase().includes(q)));
-      if (found) {
-        const plate = found.plates.find(p => p.toLowerCase().includes(q)) || '';
-        plateMatch = { customer: found, plate };
-      }
-      filtered = customers.filter(c => c.plates.some(p => p.toLowerCase().includes(q)));
-    } else {
-      filtered = customers.filter(c =>
-        c.name.toLowerCase().includes(q) || c.phone.includes(q) || (!!c.altPhone && c.altPhone.includes(q))
-      );
+    filtered = customers.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      c.phone.includes(q) ||
+      (!!c.altPhone && c.altPhone.includes(q)) ||
+      c.plates.some(p => p.toLowerCase().includes(q))
+    );
+    // ถ้า query ตรงกับทะเบียนคันใด → แสดง banner เจ้าของทะเบียน
+    const found = customers.find(c => c.plates.some(p => p.toLowerCase().includes(q)));
+    if (found) {
+      const plate = found.plates.find(p => p.toLowerCase().includes(q)) || '';
+      plateMatch = { customer: found, plate };
     }
   }
 
@@ -186,8 +185,8 @@ export const History: React.FC<HistoryProps> = ({ bookings, slots = [], lang, on
         />
       </div>
 
-      {/* Plate search result banner */}
-      {isPlateSearch && plateMatch && (
+      {/* Plate search result banner — แสดงเมื่อ query ตรงกับทะเบียน */}
+      {plateMatch && (
         <div className="card p-4 border-l-4 border-blue-500 bg-blue-50">
           <p className="text-xs text-blue-500 font-semibold mb-1">{t.history.plateOwner}</p>
           <div className="flex flex-wrap items-center gap-2 md:gap-3">
@@ -197,12 +196,6 @@ export const History: React.FC<HistoryProps> = ({ bookings, slots = [], lang, on
               {plateMatch.customer.phone}{plateMatch.customer.altPhone ? ` · ${plateMatch.customer.altPhone}` : ''}
             </span>
           </div>
-        </div>
-      )}
-
-      {isPlateSearch && !plateMatch && q && (
-        <div className="card p-4 text-center text-slate-400 text-sm">
-          {lang === 'th' ? `ไม่พบทะเบียน "${search}" ในระบบ` : `Plate "${search}" not found in system`}
         </div>
       )}
 
