@@ -1,10 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // src/context/AuthContext.tsx
-// Global auth state — ใช้ useAuth() ใน component ใดก็ได้
+// Global auth state — ตัวตนจริงอยู่ใน Supabase Auth (JWT) เพื่อให้ผ่าน RLS ของ DB
+// ใช้ useAuth() ใน component ใดก็ได้
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
-import { AppUser, UserRole, RolePermissions, getPermissions, authenticate } from '../config/users';
+import type { Session, User } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
+import { AppUser, UserRole, RolePermissions, getPermissions, usernameToEmail } from '../config/users';
 
 interface AuthState {
   user: AppUser | null;
@@ -14,65 +17,73 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
-  login: (username: string, password: string, remember?: boolean) => boolean;
+  login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    role: null,
-    permissions: null,
-    isAuthenticated: false,
-  });
+const LOGGED_OUT: AuthState = { user: null, role: null, permissions: null, isAuthenticated: false };
 
-  // ─── Auto-restore session from localStorage on mount ──────────────────
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('sky_session');
-      if (saved) {
-        const { username, password } = JSON.parse(saved);
-        const user = authenticate(username, password);
-        if (user) {
-          setState({
-            user,
-            role: user.role,
-            permissions: getPermissions(user.role),
-            isAuthenticated: true,
-          });
-        } else {
-          // Credentials no longer valid, clear storage
-          localStorage.removeItem('sky_session');
-        }
-      }
-    } catch {
-      localStorage.removeItem('sky_session');
+// แปลง Supabase Auth user → AppUser (role มาจาก app_metadata ที่ตั้งตอนสร้างบัญชี)
+function toAppUser(u: User): AppUser {
+  const email = u.email ?? '';
+  const username = email.split('@')[0];
+  const role: UserRole = (u.app_metadata?.dashboard_role as UserRole) ?? (username === 'admin' ? 'admin' : 'manager');
+  const displayName = (u.user_metadata?.display_name as string) ?? (username.charAt(0).toUpperCase() + username.slice(1));
+  return { username, role, displayName, email };
+}
+
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [state, setState] = useState<AuthState>(LOGGED_OUT);
+  // กัน "หน้า login กะพริบ" ตอนรีเฟรช — รอเช็ค session ที่เก็บไว้ก่อนค่อย render
+  const [ready, setReady] = useState(false);
+
+  const applySession = (session: Session | null) => {
+    if (session?.user) {
+      const user = toAppUser(session.user);
+      setState({ user, role: user.role, permissions: getPermissions(user.role), isAuthenticated: true });
+    } else {
+      setState(LOGGED_OUT);
     }
+  };
+
+  useEffect(() => {
+    // ล้าง session แบบเก่าที่เคยเก็บ username/password ไว้ตรงๆ (เลิกใช้แล้ว)
+    localStorage.removeItem('sky_session');
+
+    supabase.auth.getSession().then(({ data }) => {
+      applySession(data.session);
+      setReady(true);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      applySession(session);
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
 
-  const login = useCallback((username: string, password: string, remember: boolean = false): boolean => {
-    const user = authenticate(username, password);
-    if (!user) return false;
-    setState({
-      user,
-      role: user.role,
-      permissions: getPermissions(user.role),
-      isAuthenticated: true,
+  const login = useCallback(async (username: string, password: string): Promise<boolean> => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: usernameToEmail(username),
+      password,
     });
-    if (remember) {
-      localStorage.setItem('sky_session', JSON.stringify({ username, password }));
-    } else {
-      localStorage.removeItem('sky_session');
-    }
+    if (error || !data.user) return false;
+    applySession(data.session);
     return true;
   }, []);
 
   const logout = useCallback(() => {
-    setState({ user: null, role: null, permissions: null, isAuthenticated: false });
-    localStorage.removeItem('sky_session');
+    void supabase.auth.signOut();
+    setState(LOGGED_OUT);
   }, []);
+
+  if (!ready) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <p className="text-slate-400">กำลังโหลด...</p>
+      </div>
+    );
+  }
 
   return (
     <AuthContext.Provider value={{ ...state, login, logout }}>

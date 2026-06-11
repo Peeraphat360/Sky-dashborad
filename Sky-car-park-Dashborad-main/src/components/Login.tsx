@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // src/components/Login.tsx
-// เพิ่ม: "จดจำฉัน" — บันทึก credentials ลง localStorage และ auto-fill
+// ตรวจรหัสกับ Supabase Auth — "จดจำฉัน" เก็บแค่ username (ไม่เก็บรหัสผ่านในเครื่อง)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useState, useEffect } from 'react';
@@ -18,40 +18,40 @@ export const Login: React.FC = () => {
   const [error,    setError]          = useState('');
   const [loading,  setLoading]        = useState(false);
 
-  // ─── Load saved credentials on mount ──────────────────────────────────
+  // ─── Load saved username on mount ─────────────────────────────────────
   useEffect(() => {
     try {
       const saved = localStorage.getItem(REMEMBER_KEY);
       if (saved) {
         const { username: u, password: p } = JSON.parse(saved);
         setUsername(u ?? '');
-        setPassword(p ?? '');
         setRemember(true);
+        // ค่าเก่าอาจมีรหัสผ่านติดมา — เขียนทับให้เหลือแค่ username
+        if (p !== undefined) {
+          localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: u ?? '' }));
+        }
       }
     } catch {
       localStorage.removeItem(REMEMBER_KEY);
     }
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    setTimeout(() => {
-      const success = login(username.trim(), password, remember);
-      if (!success) {
-        setError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
-        setLoading(false);
-      } else {
-        // Save or clear remember-me credentials
-        if (remember) {
-          localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: username.trim(), password }));
-        } else {
-          localStorage.removeItem(REMEMBER_KEY);
-        }
-      }
-    }, 600);
+    const success = await login(username.trim(), password);
+    if (!success) {
+      setError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+      setLoading(false);
+      return;
+    }
+    if (remember) {
+      localStorage.setItem(REMEMBER_KEY, JSON.stringify({ username: username.trim() }));
+    } else {
+      localStorage.removeItem(REMEMBER_KEY);
+    }
   };
 
   return (
