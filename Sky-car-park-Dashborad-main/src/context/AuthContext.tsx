@@ -40,6 +40,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [ready, setReady] = useState(false);
 
   const applySession = (session: Session | null) => {
+    // ส่ง JWT ของแอดมินเข้า Realtime ก่อนเสมอ — หลังเปิด RLS การ subscribe
+    // (popup จองใหม่ + live update) ต้องใช้ token นี้ถึงจะได้รับ event
+    // ทำก่อน setState เพื่อให้ channel ที่ App สร้างหลัง re-render ใช้ token ที่ถูกต้อง
+    supabase.realtime.setAuth(session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY);
     if (session?.user) {
       const user = toAppUser(session.user);
       setState({ user, role: user.role, permissions: getPermissions(user.role), isAuthenticated: true });
