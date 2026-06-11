@@ -33,8 +33,18 @@ const parseUtc = (s?: string | null): Date => {
   return new Date(hasTz ? s : s + 'Z');
 };
 
-// เสียงแจ้งเตือนสั้นๆ (best-effort — ถ้า browser บล็อกก็ข้ามไป)
+// เสียงแจ้งเตือนจองใหม่ — เล่นไฟล์เสียงใน public/ (best-effort — ถ้า browser
+// บล็อกหรือโหลดไฟล์ไม่ได้ จะ fallback เป็นเสียง beep สังเคราะห์)
 function playAlertSound() {
+  try {
+    const audio = new Audio('/booking-alert.m4a');
+    audio.play().catch(() => playBeepFallback());
+  } catch {
+    playBeepFallback();
+  }
+}
+
+function playBeepFallback() {
   try {
     const Ctx = window.AudioContext || (window as any).webkitAudioContext;
     if (!Ctx) return;
