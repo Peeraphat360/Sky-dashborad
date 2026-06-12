@@ -179,6 +179,8 @@ function AppInner() {
           status: derivedStatus,
           createdAt: parseUtc(b.created_at),
           isWalkIn: b.is_walk_in !== false,
+          // จองออนไลน์ที่หาช่องไม่ได้ (เต็ม) → slot_id เป็น null, ยัง PENDING, ไม่ใช่ walk-in
+          isFull: !b.slot_id && b.status === 'PENDING' && b.is_walk_in === false,
           paymentMethod: payment ? (payment.method === 'CASH' ? 'cash' : 'transfer') : undefined,
           paidAt: payment ? parseUtc(payment.paid_at || payment.created_at) : undefined,
           remarks: b.remarks || undefined,
@@ -364,6 +366,26 @@ function AppInner() {
     void notifyLine(`/notifications/${id}/confirmed`); // UC3 — push แจ้งยืนยันการจอง
   }, [fetchData, lang, notifyLine]);
 
+  // แจ้งเตือนลูกค้าว่าช่องเต็ม (สำหรับการจองที่เข้ามาตอนช่องไม่ว่าง): push LINE บอกว่า
+  // ช่วงวันที่เลือกเต็ม + ช่องจะว่างอีกวันไหน (line-service คำนวณให้) แล้วปิดรายการ (CANCELLED)
+  const handleNotifyFull = useCallback(async (id: string) => {
+    const base = import.meta.env.VITE_LINE_SERVICE_URL ?? 'http://localhost:8000';
+    let pushOk = true;
+    try {
+      const res = await fetch(`${base}/notifications/${id}/slot-full`, { method: 'POST' });
+      const body = await res.json().catch(() => ({}));
+      pushOk = res.ok && body?.sent !== false;
+    } catch { pushOk = false; }
+    // ปิดรายการเต็มออกจากคิว (ยืนยันไม่ได้เพราะไม่มีช่อง) — authenticated update policy อนุญาต
+    await supabase.from('bookings').update({ status: 'CANCELLED' }).eq('id', id);
+    fetchData();
+    if (!pushOk) {
+      alert(lang === 'th'
+        ? 'ปิดรายการแล้ว แต่ส่ง LINE แจ้งลูกค้าไม่สำเร็จ (ลูกค้าอาจยังไม่ได้เพิ่มเพื่อน OA)'
+        : 'Closed the request, but the LINE notice could not be delivered.');
+    }
+  }, [fetchData, lang]);
+
   // ย้ายรถไปช่องใหม่: ช่องเก่า → AVAILABLE, ช่องใหม่ → OCCUPIED (atomic + กันช่องไม่ว่าง)
   const handleMoveBooking = useCallback(async (bookingId: string, newSlotId: string) => {
     const { error } = await supabase.rpc('move_booking', { p_booking_id: bookingId, p_new_slot_id: newSlotId });
@@ -403,6 +425,7 @@ function AppInner() {
             onEdit={handleEditBooking}
             onCheckIn={handleCheckIn}
             onConfirmPending={handleConfirmBooking}
+            onNotifyFull={handleNotifyFull}
             filter={bookingsFilter}
             onFilterChange={setBookingsFilter}
           />

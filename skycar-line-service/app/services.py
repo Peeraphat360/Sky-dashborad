@@ -11,6 +11,7 @@ from fastapi import HTTPException
 from .config import get_settings
 from .flex.confirmation import build_confirmation_flex
 from .flex.receipt import build_receipt_flex
+from .flex.slot_full import build_slot_full_flex
 from .line_client import LinePushError, get_profile, push_flex
 from .repository import Repository, TITLE_CONFIRMED, TITLE_RECEIPT
 from .schemas import BookingContext, SendResult
@@ -85,3 +86,21 @@ async def send_confirmation(repo: Repository, booking_id: str) -> SendResult:
     return await _deliver(
         repo, ctx, TITLE_CONFIRMED, bubble, alt_text=f"ยืนยันการจอง {booking_id}"
     )
+
+
+async def send_slot_full(repo: Repository, booking_id: str) -> SendResult:
+    """แจ้งลูกค้าว่าช่วงวันที่จองเต็ม + วันที่ช่องจะว่าง (คำนวณอัตโนมัติ).
+    ไม่ใช้ idempotency log เพราะเป็น action ที่แอดมินกดเอง — push ตรงทันที."""
+    ctx = await _load(repo, booking_id)
+    settings = get_settings()
+    next_free = await repo.next_free_datetime(ctx.start_time, ctx.end_time)
+    bubble = build_slot_full_flex(
+        ctx, next_free, logo_url=settings.logo_url, shop_phone=settings.shop_phone
+    )
+    try:
+        await push_flex(ctx.line_user_id, bubble, alt_text="ช่องจอดเต็มในวันที่คุณเลือก")
+    except LinePushError as exc:
+        if exc.status_code in (400, 403):
+            return SendResult(sent=False, booking_id=booking_id, reason="recipient_not_friend")
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return SendResult(sent=True, booking_id=booking_id)

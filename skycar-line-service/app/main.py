@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import get_settings
 from .repository import Repository
 from .schemas import SendResult, SupabaseWebhookPayload
-from .services import send_confirmation, send_receipt
+from .services import send_confirmation, send_receipt, send_slot_full
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("skycar-line-service")
@@ -62,6 +62,14 @@ async def notifications_confirmed(
     booking_id: str, repo: Repository = Depends(get_repo)
 ) -> SendResult:
     return await send_confirmation(repo, booking_id)
+
+
+@app.post("/notifications/{booking_id}/slot-full", response_model=SendResult)
+async def notifications_slot_full(
+    booking_id: str, repo: Repository = Depends(get_repo)
+) -> SendResult:
+    """แจ้งลูกค้าว่าช่วงวันที่จองเต็ม + วันที่ช่องจะว่าง (แอดมินกดจาก dashboard)."""
+    return await send_slot_full(repo, booking_id)
 
 
 # ── Supabase Database Webhook receivers ──────────────────────────────────────

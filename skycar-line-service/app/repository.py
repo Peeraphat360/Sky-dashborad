@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime
 from typing import Any, Callable, Optional, TypeVar
 
 from supabase import Client, create_client
@@ -104,6 +105,28 @@ class Repository:
             .eq("id", user_id)
             .execute()
         )
+
+    async def next_free_datetime(self, start: datetime, end: datetime) -> Optional[datetime]:
+        """วันเวลาที่ช่องจอดจะเริ่มว่าง สำหรับช่วง [start, end] ที่เต็มอยู่ —
+        = end_time ที่เร็วที่สุดในบรรดา booking ที่ครองช่อง (มี slot_id) และทับช่วงนี้.
+        คืน None ถ้าหาไม่ได้."""
+        start_iso = start.isoformat()
+        end_iso = end.isoformat()
+        rows = await self._run(
+            lambda: self._client.table("bookings")
+            .select("end_time")
+            .not_.is_("slot_id", "null")
+            .in_("status", ["PENDING", "CONFIRMED", "PARKED"])
+            .lt("start_time", end_iso)
+            .gt("end_time", start_iso)
+            .order("end_time")
+            .limit(1)
+            .execute()
+            .data
+        )
+        if not rows:
+            return None
+        return parse_dt(rows[0]["end_time"])
 
     async def log_sent(self, user_id: str, title: str, booking_id: str) -> None:
         await self._run(

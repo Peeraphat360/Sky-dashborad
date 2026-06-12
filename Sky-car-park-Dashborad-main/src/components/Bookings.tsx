@@ -29,6 +29,7 @@ interface BookingsProps {
   onDelete?: (id: string) => void;
   onCheckIn?: (id: string) => void;
   onConfirmPending?: (id: string) => void;
+  onNotifyFull?: (id: string) => void;                    // แจ้งลูกค้าว่าช่องเต็ม (รายการ isFull)
   filter?: 'confirmed' | 'pending';                       // แท็บที่เลือก (ควบคุมจาก App ได้)
   onFilterChange?: (f: 'confirmed' | 'pending') => void;
 }
@@ -256,7 +257,7 @@ const zoneColors: Record<string, string> = {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export const Bookings: React.FC<BookingsProps> = ({
-  bookings, slots, lang, onMarkPaid, onCancel, onAdd, onEdit, onCheckIn, onConfirmPending,
+  bookings, slots, lang, onMarkPaid, onCancel, onAdd, onEdit, onCheckIn, onConfirmPending, onNotifyFull,
   filter, onFilterChange,
 }) => {
   const t = translations[lang];
@@ -269,6 +270,7 @@ export const Bookings: React.FC<BookingsProps> = ({
   const [confirmCheckInId, setConfirmCheckInId] = useState<string | null>(null);
   const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
   const [confirmPendingId, setConfirmPendingId] = useState<string | null>(null);
+  const [notifyFullId, setNotifyFullId] = useState<string | null>(null);
   // แท็บ: ถ้า App ส่ง filter/onFilterChange มา → ควบคุมจาก App (เช่น popup สั่งไป "รอยืนยัน")
   // ไม่งั้นใช้ state ภายในเหมือนเดิม
   const [localFilter, setLocalFilter] = useState<'confirmed' | 'pending'>('confirmed');
@@ -385,12 +387,20 @@ export const Bookings: React.FC<BookingsProps> = ({
                 {/* Card header */}
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <div className={`w-9 h-9 rounded-xl ${zoneColors[b.zone] || 'bg-slate-700'} text-white text-xs font-bold flex items-center justify-center`}>
-                      {b.zone}
+                    <div className={`w-9 h-9 rounded-xl ${b.isFull ? 'bg-red-500' : (zoneColors[b.zone] || 'bg-slate-700')} text-white text-xs font-bold flex items-center justify-center`}>
+                      {b.isFull ? '!' : b.zone}
                     </div>
                     <div>
-                      <p className="text-xs text-slate-400">{lang === 'th' ? 'ช่องจอดที่แนะนำ' : 'Recommended Slot'}</p>
-                      <p className="text-sm font-bold text-slate-700">{b.slotNumber.toString().padStart(3,'0')}</p>
+                      <p className="text-xs text-slate-400">
+                        {b.isFull
+                          ? (lang === 'th' ? 'สถานะช่องจอด' : 'Slot status')
+                          : (lang === 'th' ? 'ช่องจอดที่แนะนำ' : 'Recommended Slot')}
+                      </p>
+                      <p className={`text-sm font-bold ${b.isFull ? 'text-red-600' : 'text-slate-700'}`}>
+                        {b.isFull
+                          ? (lang === 'th' ? 'เต็ม — ไม่มีช่องว่าง' : 'Full — no slot')
+                          : b.slotNumber.toString().padStart(3, '0')}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 flex-wrap justify-end">
@@ -483,14 +493,25 @@ export const Bookings: React.FC<BookingsProps> = ({
                 <div className="flex flex-wrap gap-2">
                   {b.status === 'pending' ? (
                     <>
-                      <button
-                        onClick={() => setConfirmPendingId(b.id)}
-                        className="flex-1 justify-center text-xs flex items-center gap-1.5 px-3 py-2 rounded-xl font-semibold bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
-                      >
-                        <CheckCircleIcon className="w-3.5 h-3.5" />
-                        {lang === 'th' ? 'ยืนยันการจอง' : 'Confirm'}
-                      </button>
-                      {permissions.canEditBooking && (
+                      {b.isFull ? (
+                        // ช่องเต็มในวันที่ลูกค้าเลือก → แจ้งเตือนลูกค้าแทนการยืนยัน
+                        <button
+                          onClick={() => setNotifyFullId(b.id)}
+                          className="flex-1 justify-center text-xs flex items-center gap-1.5 px-3 py-2 rounded-xl font-semibold bg-red-500 hover:bg-red-600 text-white transition-colors"
+                        >
+                          <ExclamationTriangleIcon className="w-3.5 h-3.5" />
+                          {lang === 'th' ? 'แจ้งเตือนลูกค้า (เต็ม)' : 'Notify customer (full)'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmPendingId(b.id)}
+                          className="flex-1 justify-center text-xs flex items-center gap-1.5 px-3 py-2 rounded-xl font-semibold bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
+                        >
+                          <CheckCircleIcon className="w-3.5 h-3.5" />
+                          {lang === 'th' ? 'ยืนยันการจอง' : 'Confirm'}
+                        </button>
+                      )}
+                      {permissions.canEditBooking && !b.isFull && (
                         <button onClick={() => setEditingBooking(b)} className="btn-secondary px-4 text-xs font-medium">
                           {t.booking.edit}
                         </button>
@@ -706,6 +727,60 @@ export const Bookings: React.FC<BookingsProps> = ({
                   </button>
                   <button onClick={() => { onConfirmPending?.(pendingBooking.id); setConfirmPendingId(null); }} className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-all bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-500/20">
                     {lang === 'th' ? 'ยืนยันการจอง' : 'Confirm Booking'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Notify-Full Confirmation Modal — แจ้งลูกค้าว่าช่องเต็ม */}
+      {notifyFullId && (() => {
+        const fb = bookings.find(b => b.id === notifyFullId);
+        if (!fb) return null;
+        return (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <ExclamationTriangleIcon className="w-6 h-6 text-red-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-800">{lang === 'th' ? 'แจ้งเตือนลูกค้า — ช่องเต็ม' : 'Notify customer — Full'}</h3>
+                  </div>
+                </div>
+                <button onClick={() => setNotifyFullId(null)} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
+                  <XMarkIcon className="w-5 h-5 text-slate-500" />
+                </button>
+              </div>
+              <div className="p-5 space-y-5">
+                <div className="text-sm text-slate-600 space-y-2">
+                  <p className="text-center">
+                    {lang === 'th' ? (
+                      <>ช่วงวันที่ลูกค้า <span className="font-bold text-slate-800">{fb.customer.name}</span> เลือกไว้ <span className="font-bold text-red-600">ช่องจอดเต็ม</span> — ระบบจะส่ง LINE แจ้งลูกค้าว่าเต็ม พร้อมวันที่ช่องจะว่าง แล้วปิดรายการนี้</>
+                    ) : (
+                      <>The dates <span className="font-bold text-slate-800">{fb.customer.name}</span> chose are <span className="font-bold text-red-600">full</span>. A LINE notice (with the next free date) will be sent, then this request will be closed.</>
+                    )}
+                  </p>
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">{lang === 'th' ? 'วันเข้า' : 'Check-in'}</span>
+                      <span className="font-medium text-slate-700">{formatDate(fb.checkIn, lang)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">{lang === 'th' ? 'วันออก' : 'Check-out'}</span>
+                      <span className="font-medium text-slate-700">{formatDate(fb.checkOut, lang)}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={() => setNotifyFullId(null)} className="flex-1 py-2.5 text-sm font-medium text-slate-500 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+                    {lang === 'th' ? 'ยกเลิก' : 'Cancel'}
+                  </button>
+                  <button onClick={() => { onNotifyFull?.(fb.id); setNotifyFullId(null); }} className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-all bg-red-500 hover:bg-red-600 text-white shadow-md shadow-red-500/20">
+                    {lang === 'th' ? 'ส่งแจ้งเตือน' : 'Send notice'}
                   </button>
                 </div>
               </div>

@@ -60,6 +60,8 @@ export interface Booking {
   status: BookingStatus;
   createdAt: Date;
   isWalkIn: boolean;
+  // true = จองออนไลน์เข้ามาตอนช่องเต็ม (slot_id เป็น NULL) → แอดมินกด "แจ้งเตือนลูกค้า" แทนยืนยัน
+  isFull?: boolean;
   paymentMethod?: 'cash' | 'transfer';
   paidAt?: Date;
   remarks?: string;
